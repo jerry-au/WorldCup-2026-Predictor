@@ -4,6 +4,7 @@ from .user import User
 from .player_stats import PlayerSeasonStats
 from .scraped_data import ScrapedPlayerData
 from .dongqiudi_data import DongqiudiTeamData, DongqiudiCoachData, DongqiudiPlayerData
+from .simulation import SimulationRun, SimulationResult, KnockoutBracket
 
 __all__ = [
     "Team",
@@ -14,4 +15,7 @@ __all__ = [
     "DongqiudiTeamData",
     "DongqiudiCoachData",
     "DongqiudiPlayerData",
+    "SimulationRun",
+    "SimulationResult",
+    "KnockoutBracket",
 ]

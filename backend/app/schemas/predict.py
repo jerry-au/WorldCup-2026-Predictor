@@ -38,3 +38,38 @@ class PredictResponse(BaseModel):
     system_confidence: float
     match_type: str
     betting: dict
+
+
+# ── Tournament Simulation ──────────────────────────────────────────
+
+
+class TournamentResponse(BaseModel):
+    task_id: str
+    status: str
+
+
+class TeamProbabilityOut(BaseModel):
+    team_code: str
+    team_name: str
+    round_32: float
+    round_16: float
+    quarter: float
+    semi: float
+    final_: float
+    champion: float
+
+
+class KnockoutMatchOut(BaseModel):
+    round_name: str
+    position: int
+    team_a: str | None
+    team_b: str | None
+    prob_a: float | None
+    prob_b: float | None
+
+
+class TaskProgressResponse(BaseModel):
+    status: str   # running / completed / failed
+    progress: float = 0.0
+    result: dict | None = None
+    error: str | None = None
