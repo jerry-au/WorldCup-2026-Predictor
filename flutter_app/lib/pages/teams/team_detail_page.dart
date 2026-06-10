@@ -100,6 +100,24 @@ class _TeamDetailContent extends StatelessWidget {
 
         const SizedBox(height: 16),
 
+        // Starting XI section
+        if (team.startingXi.isNotEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('首发 11 人 (4-3-3)', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  const Divider(),
+                  _buildFormationView(context, team.startingXi),
+                ],
+              ),
+            ),
+          ).animate().fadeIn(delay: 50.ms),
+
+        const SizedBox(height: 16),
+
         // Players section
         Card(
           child: Padding(
@@ -115,28 +133,95 @@ class _TeamDetailContent extends StatelessWidget {
                     child: Center(child: Text('暂无球员数据')),
                   )
                 else
-                  ...team.players.map((player) => ListTile(
-                        dense: true,
-                        leading: CircleAvatar(
-                          radius: 16,
-                          child: Text('${player.jersey ?? '?'}', style: const TextStyle(fontSize: 11)),
-                        ),
-                        title: Text(player.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                        subtitle: Text(
-                          [
-                            if (player.position != null) player.position!,
-                            if (player.clubName != null) player.clubName!,
-                          ].join(' · '),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: player.ageAtTournament != null
-                            ? Text('${player.ageAtTournament}岁', style: const TextStyle(fontSize: 12, color: Colors.grey))
-                            : null,
-                      )),
+                  ...team.players.map((player) {
+                    final hasStats = player.seasonStats.isNotEmpty;
+                    return ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: const EdgeInsets.only(left: 56, bottom: 8),
+                      dense: true,
+                      leading: CircleAvatar(
+                        radius: 16,
+                        child: Text('${player.jersey ?? '?'}', style: const TextStyle(fontSize: 11)),
+                      ),
+                      title: Text(player.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      subtitle: Text(
+                        [
+                          if (player.position != null) player.position!,
+                          if (player.clubName != null) player.clubName!,
+                        ].join(' · '),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: player.ageAtTournament != null
+                          ? Text('${player.ageAtTournament}岁', style: const TextStyle(fontSize: 12, color: Colors.grey))
+                          : (hasStats ? const Icon(Icons.expand_more, size: 18) : null),
+                      children: hasStats
+                          ? player.seasonStats.map((stat) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Text(
+                                '${stat.competitionName ?? stat.competitionCode}: '
+                                '${stat.appearances}场 ${stat.goals}球 ${stat.assists}助 ${stat.minutesPlayed}分钟',
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                              ),
+                            )).toList()
+                          : [],
+                    );
+                  }),
               ],
             ),
           ),
         ).animate().fadeIn(delay: 100.ms),
+      ],
+    );
+  }
+
+  Widget _buildFormationView(BuildContext context, List<Player> xi) {
+    final gk = xi.where((p) => p.position == 'GK').toList();
+    final df = xi.where((p) => p.position == 'DF').toList();
+    final mf = xi.where((p) => p.position == 'MF').toList();
+    final fw = xi.where((p) => p.position == 'FW').toList();
+
+    return Column(
+      children: [
+        if (fw.isNotEmpty) _positionRow(context, fw, Colors.red),
+        const SizedBox(height: 12),
+        if (mf.isNotEmpty) _positionRow(context, mf, Colors.green),
+        const SizedBox(height: 12),
+        if (df.isNotEmpty) _positionRow(context, df, Colors.blue),
+        const SizedBox(height: 12),
+        if (gk.isNotEmpty) _positionRow(context, gk, Colors.orange),
+      ],
+    );
+  }
+
+  Widget _positionRow(BuildContext context, List<Player> players, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: players.map((p) => _playerBubble(context, p, color)).toList(),
+    );
+  }
+
+  Widget _playerBubble(BuildContext context, Player player, Color color) {
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: color.withOpacity(0.15),
+          child: Text(
+            '${player.jersey ?? '?'}',
+            style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14),
+          ),
+        ),
+        const SizedBox(height: 4),
+        SizedBox(
+          width: 60,
+          child: Text(
+            player.name,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          ),
+        ),
       ],
     );
   }
