@@ -104,3 +104,88 @@ def needs_standings_refresh(
     if match_just_finished:
         return True
     return False
+
+
+import json
+from datetime import datetime, timedelta
+
+from ..database import SessionLocal
+from ..models.team import Team
+from ..models.recommendation_cache import RecommendationCache
+from ..core.prediction import PredictionEngine
+from ..services.recommendation import recommendation_engine
+
+
+def precompute_recommendations():
+    """Precompute value bets and discrepancies for all same-group matchups.
+
+    Results are cached in the recommendation_cache table with 8h TTL.
+    Note: This runs synchronously and does not fetch live odds (uses cached/empty).
+    """
+    db = SessionLocal()
+    try:
+        engine = PredictionEngine()
+        teams = db.query(Team).all()
+        ttl = RecommendationCache.default_ttl()
+
+        scanned = 0
+        for i, team_a in enumerate(teams):
+            for j, team_b in enumerate(teams):
+                if j <= i or team_a.group_name != team_b.group_name:
+                    continue
+                if scanned >= 12:
+                    break
+
+                pred = engine.predict(team_a, team_b, "group")
+
+                # Use empty odds_data for precomputation (no live API call)
+                betting = recommendation_engine.analyze(
+                    system_probs=pred["probabilities"],
+                    system_confidence=pred["system_confidence"],
+                    odds_data=None,
+                )
+
+                now = datetime.utcnow()
+
+                _upsert_cache(
+                    db, "value_bets", team_a.code, team_b.code,
+                    json.dumps(betting["recommendations"], ensure_ascii=False),
+                    now, now + ttl,
+                )
+
+                _upsert_cache(
+                    db, "discrepancies", team_a.code, team_b.code,
+                    json.dumps(betting["discrepancy"], ensure_ascii=False),
+                    now, now + ttl,
+                )
+
+                scanned += 1
+            if scanned >= 12:
+                break
+
+        db.commit()
+    finally:
+        db.close()
+
+
+def _upsert_cache(db, cache_type, team_a_code, team_b_code, result_data, computed_at, expires_at):
+    """Insert or update a cache entry."""
+    existing = db.query(RecommendationCache).filter(
+        RecommendationCache.cache_type == cache_type,
+        RecommendationCache.team_a_code == team_a_code,
+        RecommendationCache.team_b_code == team_b_code,
+    ).first()
+
+    if existing:
+        existing.result_data = result_data
+        existing.computed_at = computed_at
+        existing.expires_at = expires_at
+    else:
+        db.add(RecommendationCache(
+            cache_type=cache_type,
+            team_a_code=team_a_code,
+            team_b_code=team_b_code,
+            result_data=result_data,
+            computed_at=computed_at,
+            expires_at=expires_at,
+        ))
