@@ -88,6 +88,8 @@ class _BracketPainter extends CustomPainter {
   final int rounds;
   final Map<String, int> roundSizes;
 
+  final Map<String, Offset> _nodePositions = {};
+
   _BracketPainter({
     required this.matches,
     required this.teamNames,
@@ -105,6 +107,8 @@ class _BracketPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    _nodePositions.clear();
+
     // Group matches by round
     final byRound = <String, List<BracketMatch>>{};
     for (final m in matches) {
@@ -131,6 +135,9 @@ class _BracketPainter extends CustomPainter {
         final cy = _matchCenterY(ri, count, mi, roundKeys, size.height);
 
         final topY = cy - nodeHeight / 2;
+
+        // Record node center position for connector drawing
+        _nodePositions['${match.roundName}_${match.position}'] = Offset(roundX + nodeWidth / 2, cy);
 
         // Draw team A (top half)
         _drawNode(
@@ -162,6 +169,69 @@ class _BracketPainter extends CustomPainter {
 
       }
     }
+
+    // Draw connectors between rounds
+    for (int ri = 0; ri < roundKeys.length - 1; ri++) {
+      final currentRound = roundKeys[ri];
+      final nextRound = roundKeys[ri + 1];
+      final currentMatches = byRound[currentRound]!..sort((a, b) => a.position.compareTo(b.position));
+      final nextMatches = byRound[nextRound]!..sort((a, b) => a.position.compareTo(b.position));
+
+      for (int ni = 0; ni < nextMatches.length; ni++) {
+        final topMatchIdx = ni * 2;
+        final bottomMatchIdx = ni * 2 + 1;
+
+        if (topMatchIdx < currentMatches.length && bottomMatchIdx < currentMatches.length) {
+          final topKey = '${currentRound}_${currentMatches[topMatchIdx].position}';
+          final bottomKey = '${currentRound}_${currentMatches[bottomMatchIdx].position}';
+          final nextKey = '${nextRound}_${nextMatches[ni].position}';
+
+          final topPos = _nodePositions[topKey];
+          final bottomPos = _nodePositions[bottomKey];
+          final nextPos = _nodePositions[nextKey];
+
+          if (topPos != null && bottomPos != null && nextPos != null) {
+            final currentX = topPos.dx - nodeWidth / 2;
+            final nextX = nextPos.dx - nodeWidth / 2;
+            final midX = (currentX + nodeWidth + nextX) / 2;
+            _drawConnector(canvas, topPos, bottomPos, nextPos, midX);
+          }
+        }
+      }
+    }
+  }
+
+  void _drawConnector(
+    Canvas canvas,
+    Offset fromTop,
+    Offset fromBottom,
+    Offset toNode,
+    double midX,
+  ) {
+    final paint = Paint()
+      ..color = Colors.grey.shade300
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+
+    // From top match: right edge → horizontal to midX
+    path.moveTo(fromTop.dx + nodeWidth / 2, fromTop.dy);
+    path.lineTo(midX, fromTop.dy);
+
+    // From bottom match: right edge → horizontal to midX
+    path.moveTo(fromBottom.dx + nodeWidth / 2, fromBottom.dy);
+    path.lineTo(midX, fromBottom.dy);
+
+    // Vertical line connecting the two horizontal ends
+    path.moveTo(midX, fromTop.dy);
+    path.lineTo(midX, fromBottom.dy);
+
+    // Horizontal from midpoint to next round node left edge
+    path.moveTo(midX, (fromTop.dy + fromBottom.dy) / 2);
+    path.lineTo(toNode.dx - nodeWidth / 2, toNode.dy);
+
+    canvas.drawPath(path, paint);
   }
 
   double _matchCenterY(int ri, int count, int mi, List<String> roundKeys, double canvasH) {
