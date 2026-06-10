@@ -1,8 +1,12 @@
+import json
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.team import Team
+from ..models.recommendation_cache import RecommendationCache
 from ..core.prediction import PredictionEngine
 from ..services.odds import odds_client
 from ..services.recommendation import recommendation_engine
@@ -18,21 +22,56 @@ async def value_bets(
     page_size: int = Query(20, le=50),
     db: Session = Depends(get_db),
 ):
-    """Scan select fixtures for value betting opportunities."""
-    # In P0, we scan a subset of high-profile matchups rather than all 104
-    # This avoids hitting The Odds API rate limit (500 req/month)
+    """Return value bets from cache, falling back to live computation."""
+    cached = (
+        db.query(RecommendationCache)
+        .filter(RecommendationCache.cache_type == "value_bets")
+        .all()
+    )
+
+    valid_cache = [c for c in cached if not c.is_expired()]
+
+    if not valid_cache:
+        return await _compute_value_bets_live(min_ev, page, page_size, db)
+
+    all_bets = []
+    for c in valid_cache:
+        recs = json.loads(c.result_data)
+        for rec in recs:
+            if rec.get("ev", 0) >= min_ev:
+                team_a = db.query(Team).filter(Team.code == c.team_a_code).first()
+                team_b = db.query(Team).filter(Team.code == c.team_b_code).first()
+                if team_a and team_b:
+                    all_bets.append({
+                        "team_a": team_a.name,
+                        "team_b": team_b.name,
+                        **rec,
+                    })
+
+    all_bets.sort(key=lambda r: r.get("ev", 0), reverse=True)
+    total = len(all_bets)
+    start = (page - 1) * page_size
+    latest_cached = max(c.computed_at for c in valid_cache)
+
+    return {
+        "matches": all_bets[start:start + page_size],
+        "total": total,
+        "page": page,
+        "cached_at": latest_cached.isoformat(),
+    }
+
+
+async def _compute_value_bets_live(min_ev, page, page_size, db):
+    """Original live computation logic as fallback."""
     teams = db.query(Team).all()
     predicted = []
-
-    # Pick representative matchups per group (1-2 pairs)
     scanned = 0
+
     for i, team_a in enumerate(teams):
         for j, team_b in enumerate(teams):
-            if j <= i:
+            if j <= i or team_a.group_name != team_b.group_name:
                 continue
-            if team_a.group_name != team_b.group_name:
-                continue  # Only scan same-group matches in P0
-            if scanned >= 12:  # One per group
+            if scanned >= 12:
                 break
 
             pred = engine.predict(team_a, team_b, "group")
@@ -58,7 +97,7 @@ async def value_bets(
     predicted.sort(key=lambda r: r["ev"], reverse=True)
     total = len(predicted)
     start = (page - 1) * page_size
-    return {"matches": predicted[start:start+page_size], "total": total, "page": page}
+    return {"matches": predicted[start:start + page_size], "total": total, "page": page}
 
 
 @router.get("/discrepancies")
@@ -66,7 +105,38 @@ async def discrepancies(
     min_delta: float = Query(0.12, ge=0.05),
     db: Session = Depends(get_db),
 ):
-    """List matches where system prediction differs significantly from market odds."""
+    """Return discrepancy alerts from cache, falling back to live computation."""
+    cached = (
+        db.query(RecommendationCache)
+        .filter(RecommendationCache.cache_type == "discrepancies")
+        .all()
+    )
+
+    valid_cache = [c for c in cached if not c.is_expired()]
+
+    if not valid_cache:
+        return await _compute_discrepancies_live(min_delta, db)
+
+    alerts = []
+    for c in valid_cache:
+        disc = json.loads(c.result_data)
+        if disc.get("detected") and disc.get("max_delta", 0) >= min_delta:
+            team_a = db.query(Team).filter(Team.code == c.team_a_code).first()
+            team_b = db.query(Team).filter(Team.code == c.team_b_code).first()
+            if team_a and team_b:
+                alerts.append({
+                    "team_a": team_a.name,
+                    "team_b": team_b.name,
+                    "group": team_a.group_name,
+                    "discrepancy": disc,
+                })
+
+    latest_cached = max(c.computed_at for c in valid_cache)
+    return {"alerts": alerts, "total": len(alerts), "cached_at": latest_cached.isoformat()}
+
+
+async def _compute_discrepancies_live(min_delta, db):
+    """Original live computation logic as fallback."""
     teams = db.query(Team).all()
     alerts = []
 
