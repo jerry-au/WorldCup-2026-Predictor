@@ -33,12 +33,43 @@ class TeamSummary {
   }
 }
 
+class PlayerSeasonStats {
+  final String competitionCode;
+  final String? competitionName;
+  final int goals;
+  final int assists;
+  final int appearances;
+  final int minutesPlayed;
+
+  PlayerSeasonStats({
+    required this.competitionCode,
+    this.competitionName,
+    required this.goals,
+    required this.assists,
+    required this.appearances,
+    required this.minutesPlayed,
+  });
+
+  factory PlayerSeasonStats.fromJson(Map<String, dynamic> json) {
+    return PlayerSeasonStats(
+      competitionCode: json['competition_code'] as String,
+      competitionName: json['competition_name'] as String?,
+      goals: json['goals'] as int? ?? 0,
+      assists: json['assists'] as int? ?? 0,
+      appearances: json['appearances'] as int? ?? 0,
+      minutesPlayed: json['minutes_played'] as int? ?? 0,
+    );
+  }
+}
+
 class Player {
   final String name;
   final int? jersey;
   final String? position;
   final String? clubName;
   final int? ageAtTournament;
+  final List<PlayerSeasonStats> seasonStats;
+  final String? bestPosition;
 
   Player({
     required this.name,
@@ -46,6 +77,8 @@ class Player {
     this.position,
     this.clubName,
     this.ageAtTournament,
+    this.seasonStats = const [],
+    this.bestPosition,
   });
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -55,6 +88,11 @@ class Player {
       position: json['position'] as String?,
       clubName: json['club_name'] as String?,
       ageAtTournament: json['age_at_tournament'] as int?,
+      seasonStats: (json['season_stats'] as List<dynamic>?)
+              ?.map((e) => PlayerSeasonStats.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      bestPosition: json['best_position'] as String?,
     );
   }
 }
@@ -72,6 +110,7 @@ class TeamDetail {
   final String? coachName;
   final String? coachCountry;
   final List<Player> players;
+  final List<Player> startingXi;
 
   TeamDetail({
     required this.code,
@@ -86,6 +125,7 @@ class TeamDetail {
     this.coachName,
     this.coachCountry,
     required this.players,
+    required this.startingXi,
   });
 
   factory TeamDetail.fromJson(Map<String, dynamic> json) {
@@ -102,6 +142,10 @@ class TeamDetail {
       coachName: json['coach_name'] as String?,
       coachCountry: json['coach_country'] as String?,
       players: (json['players'] as List<dynamic>?)
+              ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      startingXi: (json['starting_xi'] as List<dynamic>?)
               ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
