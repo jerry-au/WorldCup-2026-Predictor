@@ -21,6 +21,33 @@ class BettingPage extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           // ─── Value Bets Section ───────────────────────────
+          // Data freshness indicator
+          Builder(
+            builder: (context) {
+              // We'll show freshness based on the valueBetsAsync data
+              return valueBetsAsync.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (bets) {
+                  // Check if the raw response has cached_at
+                  // Since our provider already parses the data, we show a simple note
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                        Text(
+                          '推荐数据每 8 小时更新',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
           SectionTitle(
             title: '今日价值场次',
             trailing: IconButton(
