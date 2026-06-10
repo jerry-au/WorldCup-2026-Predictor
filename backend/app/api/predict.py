@@ -115,6 +115,19 @@ def _run_simulation(task_id: str):
             )
             db.add(sr)
 
+        # Save bracket data
+        for slot in results.bracket:
+            kb = KnockoutBracket(
+                run_id=task_id,
+                round_name=slot.round_name,
+                position=slot.position,
+                team_a_code=slot.team_a,
+                team_b_code=slot.team_b,
+                prob_a=slot.prob_a,
+                prob_b=slot.prob_b,
+            )
+            db.add(kb)
+
         run = db.query(SimulationRun).filter(SimulationRun.id == task_id).first()
         if run:
             run.status = "completed"
@@ -162,6 +175,13 @@ def get_task_progress(task_id: str, db: Session = Depends(get_db)):
         .all()
     )
 
+    bracket_data = (
+        db.query(KnockoutBracket)
+        .filter(KnockoutBracket.run_id == task_id)
+        .order_by(KnockoutBracket.round_name, KnockoutBracket.position)
+        .all()
+    )
+
     return TaskProgressResponse(
         status="completed",
         progress=1.0,
@@ -178,6 +198,17 @@ def get_task_progress(task_id: str, db: Session = Depends(get_db)):
                     "champion": r.champion,
                 }
                 for r in results
+            ],
+            "bracket": [
+                {
+                    "round_name": b.round_name,
+                    "position": b.position,
+                    "team_a": b.team_a_code,
+                    "team_b": b.team_b_code,
+                    "prob_a": b.prob_a,
+                    "prob_b": b.prob_b,
+                }
+                for b in bracket_data
             ],
         },
     )

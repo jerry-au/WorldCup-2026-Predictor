@@ -32,8 +32,8 @@ class SimulationPage extends ConsumerWidget {
           if (state.result != null) ...[
             _buildRankingTable(context, state.result!),
             const SizedBox(height: 16),
-            // Bracket placeholder — actual bracket data in P1+
-            _buildBracketPlaceholder(context),
+            if (state.result!.bracket.isNotEmpty)
+              _buildBracket(context, state.result!),
           ],
         ],
       ),
@@ -221,9 +221,23 @@ class SimulationPage extends ConsumerWidget {
     );
   }
 
-  // ─── Bracket Placeholder ──────────────────────────────────────
+  // ─── Bracket ──────────────────────────────────────────────────
 
-  Widget _buildBracketPlaceholder(BuildContext context) {
+  Widget _buildBracket(BuildContext context, SimulationResult result) {
+    final bracketMatches = result.bracket.map((m) => BracketMatch(
+      roundName: m.roundName,
+      position: m.position,
+      teamA: m.teamA,
+      teamB: m.teamB,
+      probA: m.probA,
+      probB: m.probB,
+    )).toList();
+
+    final teamNames = {
+      for (final t in result.standings)
+        t.teamCode: t.teamName,
+    };
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -249,7 +263,10 @@ class SimulationPage extends ConsumerWidget {
                 boundaryMargin: const EdgeInsets.all(40),
                 minScale: 0.3,
                 maxScale: 2.0,
-                child: _buildSampleBracket(),
+                child: BracketWidget(
+                  matches: bracketMatches,
+                  teamNames: teamNames,
+                ),
               ),
             ),
           ],
@@ -257,67 +274,4 @@ class SimulationPage extends ConsumerWidget {
       ),
     ).animate().fadeIn(delay: 400.ms);
   }
-
-  Widget _buildSampleBracket() {
-    // Build sample bracket from simulation results
-    // For now, generate demo matches showing the layout
-    final demoMatches = <BracketMatch>[
-      for (int r = 0; r < 5; r++) ...[
-        for (int p = 0; p < _roundMatchCount(r); p++)
-          BracketMatch(
-            roundName: _roundNames[r],
-            position: p,
-            teamA: _demoTeam(r, p, 0),
-            teamB: _demoTeam(r, p, 1),
-            probA: 0.5 + (p % 3) * 0.05,
-            probB: 0.5 - (p % 3) * 0.05,
-          ),
-      ],
-    ];
-
-    return BracketWidget(
-      matches: demoMatches,
-      teamNames: _demoNames,
-    );
-  }
-}
-
-const _roundNames = ['round_32', 'round_16', 'quarter', 'semi', 'final'];
-
-int _roundMatchCount(int round) {
-  switch (round) {
-    case 0: return 16;
-    case 1: return 8;
-    case 2: return 4;
-    case 3: return 2;
-    case 4: return 1;
-    default: return 0;
-  }
-}
-
-const _demoNames = {
-  'BRA': 'Brazil', 'FRA': 'France', 'ESP': 'Spain', 'ARG': 'Argentina',
-  'ENG': 'England', 'GER': 'Germany', 'NED': 'Netherlands', 'POR': 'Portugal',
-  'ITA': 'Italy', 'CRO': 'Croatia', 'BEL': 'Belgium', 'SUI': 'Switzerland',
-  'URU': 'Uruguay', 'COL': 'Colombia', 'MAR': 'Morocco', 'SEN': 'Senegal',
-  'JPN': 'Japan', 'KOR': 'South Korea', 'MEX': 'Mexico', 'USA': 'USA',
-  'CAN': 'Canada', 'AUS': 'Australia', 'CMR': 'Cameroon', 'GHA': 'Ghana',
-  'TUN': 'Tunisia', 'EGY': 'Egypt', 'ECU': 'Ecuador', 'PAR': 'Paraguay',
-  'IRN': 'Iran', 'KSA': 'Saudi Arabia', 'DEN': 'Denmark', 'SWE': 'Sweden',
-};
-
-String? _demoTeam(int round, int pos, int side) {
-  // Return realistic-looking team codes for demo purposes
-  const teams = [
-    'BRA','FRA','ESP','ARG','ENG','GER','NED','POR',
-    'ITA','CRO','BEL','SUI','URU','COL','MAR','SEN',
-    'JPN','KOR','MEX','USA','CAN','AUS','CMR','GHA',
-    'TUN','EGY','ECU','PAR','IRN','KSA','DEN','SWE',
-  ];
-  if (round == 4 && pos == 0) {
-    return side == 0 ? 'BRA' : 'FRA';
-  }
-  // For demo, just cycle through teams
-  final idx = (pos * 2 + side) % teams.length;
-  return teams[idx];
 }

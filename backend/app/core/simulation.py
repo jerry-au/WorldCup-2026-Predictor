@@ -6,7 +6,7 @@ Uses numpy vectorization for performance (~1-2s for 10,000 iterations).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -23,6 +23,17 @@ class TeamInGroup:
 
 
 @dataclass
+class BracketSlot:
+    """A single match slot in the most-likely knockout bracket."""
+    round_name: str
+    position: int
+    team_a: str
+    team_b: str
+    prob_a: float
+    prob_b: float
+
+
+@dataclass
 class SimulationResults:
     """Aggregated simulation results across all iterations."""
     team_codes: List[str]
@@ -33,6 +44,7 @@ class SimulationResults:
     semi: np.ndarray
     final_: np.ndarray
     champion: np.ndarray
+    bracket: List[BracketSlot] = field(default_factory=list)
 
 
 class MonteCarloEngine:
@@ -150,8 +162,8 @@ class MonteCarloEngine:
         qualified_thirds = self._rank_third_placed(third_ranked)
 
         # ── Phase 3: Knockout bracket ──
-        furthest = self._simulate_knockout(
-            group_rankings, qualified_thirds, n_teams, all_comps
+        furthest, bracket_slots = self._simulate_knockout(
+            group_rankings, qualified_thirds, n_teams, all_comps, all_codes
         )
 
         # ── Aggregate results ──
@@ -164,6 +176,7 @@ class MonteCarloEngine:
             semi=np.round((furthest >= 4).mean(axis=0).astype(float), 4),
             final_=np.round((furthest >= 5).mean(axis=0).astype(float), 4),
             champion=np.round((furthest >= 6).mean(axis=0).astype(float), 4),
+            bracket=bracket_slots,
         )
 
     # ── Group Stage ───────────────────────────────────────────────
@@ -263,12 +276,14 @@ class MonteCarloEngine:
         qualified_thirds: np.ndarray,
         n_teams: int,
         all_comps: np.ndarray,
-    ) -> np.ndarray:
+        all_codes: List[str],
+    ) -> Tuple[np.ndarray, List[BracketSlot]]:
         """Simulate full knockout bracket.
 
         Returns:
             furthest: [N, n_teams] — highest round reached:
                 0=group, 1=R32, 2=R16, 3=QF, 4=SF, 5=final, 6=champion
+            bracket_slots: List[BracketSlot] — most likely matchup per position
         """
         furthest = np.zeros((self.N, n_teams), dtype=np.int32)
         n_range = np.arange(self.N)
@@ -326,7 +341,12 @@ class MonteCarloEngine:
         )
         furthest[n_range, champion_idx] = 6
 
-        return furthest
+        # ── Compute most likely bracket ──
+        bracket_slots = self._compute_bracket_slots(
+            all_codes, all_comps, r32_teams, r32_w, r16_w, qf_w, sf_w
+        )
+
+        return furthest, bracket_slots
 
     def _simulate_round(
         self,
@@ -452,8 +472,85 @@ class MonteCarloEngine:
 
         return np.where(g_a > g_b, team_a_idx, team_b_idx)
 
+    # ── Bracket Computation ───────────────────────────────────────────
 
-# ── Convenience factory ────────────────────────────────────────────
+    def _compute_bracket_slots(
+        self,
+        all_codes: List[str],
+        all_comps: np.ndarray,
+        r32_teams: np.ndarray,
+        r32_w: np.ndarray,
+        r16_w: np.ndarray,
+        qf_w: np.ndarray,
+        sf_w: np.ndarray,
+    ) -> List[BracketSlot]:
+        """Compute the most likely bracket from simulation results.
+
+        For each bracket slot, finds the most frequent team across all N
+        iterations and computes their head-to-head win probability.
+        """
+        bracket: List[BracketSlot] = []
+
+        def _mode(arr: np.ndarray) -> int:
+            values, counts = np.unique(arr, return_counts=True)
+            return values[int(np.argmax(counts))]
+
+        def _h2h(ta: int, tb: int) -> Tuple[float, float]:
+            return self._h2h_prob(float(all_comps[ta]), float(all_comps[tb]))
+
+        # R32: direct from group-based slot assignments
+        for mi in range(16):
+            ta = _mode(r32_teams[:, mi, 0])
+            tb = _mode(r32_teams[:, mi, 1])
+            pa, pb = _h2h(ta, tb)
+            bracket.append(BracketSlot("round_32", mi, all_codes[ta], all_codes[tb], pa, pb))
+
+        # R16: most common winners advance from adjacent R32 matches
+        for mi in range(8):
+            ta = _mode(r32_w[:, mi * 2])
+            tb = _mode(r32_w[:, mi * 2 + 1])
+            pa, pb = _h2h(ta, tb)
+            bracket.append(BracketSlot("round_16", mi, all_codes[ta], all_codes[tb], pa, pb))
+
+        # QF
+        for mi in range(4):
+            ta = _mode(r16_w[:, mi * 2])
+            tb = _mode(r16_w[:, mi * 2 + 1])
+            pa, pb = _h2h(ta, tb)
+            bracket.append(BracketSlot("quarter", mi, all_codes[ta], all_codes[tb], pa, pb))
+
+        # SF
+        for mi in range(2):
+            ta = _mode(qf_w[:, mi * 2])
+            tb = _mode(qf_w[:, mi * 2 + 1])
+            pa, pb = _h2h(ta, tb)
+            bracket.append(BracketSlot("semi", mi, all_codes[ta], all_codes[tb], pa, pb))
+
+        # Final
+        ta = _mode(sf_w[:, 0])
+        tb = _mode(sf_w[:, 1])
+        pa, pb = _h2h(ta, tb)
+        bracket.append(BracketSlot("final", 0, all_codes[ta], all_codes[tb], pa, pb))
+
+        return bracket
+
+    def _h2h_prob(self, comp_a: float, comp_b: float) -> Tuple[float, float]:
+        """Head-to-head win probability for a knockout match using Poisson model."""
+        elo_diff = comp_a - comp_b
+        ratio = np.exp(self._delta * elo_diff / 400.0)
+        λ_a = self._avg_goals * ratio * self.HOME_ADV
+        λ_b = self._avg_goals / ratio
+
+        n = 100_000
+        g_a = self.rng.poisson(λ_a, n)
+        g_b = self.rng.poisson(λ_b, n)
+
+        win_a = float((g_a > g_b).mean())
+        draw = float((g_a == g_b).mean())
+        win_a += draw * 0.5
+        win_b = 1.0 - win_a
+
+        return round(win_a, 4), round(win_b, 4)
 
 def run_simulation(
     teams_by_group: Dict[str, List[TeamInGroup]],

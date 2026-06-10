@@ -120,6 +120,8 @@ class _BracketPainter extends CustomPainter {
     for (int ri = 0; ri < roundKeys.length; ri++) {
       final roundName = roundKeys[ri];
       final roundMatches = byRound[roundName]!;
+      // Sort by position to ensure correct order
+      roundMatches.sort((a, b) => a.position.compareTo(b.position));
       final count = roundMatches.length;
       final roundX = xStart + ri * (nodeWidth + roundSpacing[ri]);
 
