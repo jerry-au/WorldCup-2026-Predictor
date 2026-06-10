@@ -1,0 +1,44 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Backend API",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8008",
+        "--reload"
+      ],
+      "port": 8008,
+      "cwd": "${workspaceFolder}/backend"
+    },
+    {
+      "name": "Flutter Web",
+      "runtimeExecutable": "C:\\Users\\jerry\\flutter\\bin\\flutter.bat",
+      "runtimeArgs": [
+        "build",
+        "web"
+      ],
+      "port": 8080,
+      "cwd": "${workspaceFolder}/flutter_app"
+    },
+    {
+      "name": "Flutter Web (Serve)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8080",
+        "--directory",
+        "build/web"
+      ],
+      "port": 8080,
+      "cwd": "${workspaceFolder}/flutter_app"
+    }
+  ]
+}

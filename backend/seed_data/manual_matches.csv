@@ -1,0 +1,33 @@
+# 手动对账映射表
+# 格式: 懂球帝英文名,懂球帝中文名,懂球帝号码,国家队代码,Zafronix球员名
+#
+# 确认对的取消注释（删掉 # 号），不确定的保持注释
+# 修改后运行: cd backend && python3 seed_data/apply_manual_matches.py
+
+Yaya Sithole,亚亚-西索尔,13,RSA,Sphephelo Sithole
+José Rodríguez,何塞-罗德里格斯,7,PAN,José Luis Rodríguez
+Nathan-Dylan Saliba,内森-萨利巴,25,CAN,Nathan Saliba
+Kevin Lenini,凯文-皮纳,6,CPV,Kevin Pina
+Gabriel,加布里埃尔,3,BRA,Gabriel Magalh?es
+Lionel Mpasi-Nzau,姆帕西-恩扎乌,1,COD,Lionel Mpasi
+Mladen Jurkas,尤尔卡斯,12,BIH,Nikola Vasilj
+Gi-hyuk Lee,李期奕,3,KOR,Lee Gi-hyuk
+Alejandro Grimaldo,格里马尔多,3,ESP,álex Grimaldo
+Meschack Elia,梅沙克-埃利亚,13,COD,Meschak Elia
+Munir El Kajoui,穆尼尔-穆罕默迪,12,MAR,Munir Mohamedi
+Andrew Robertson,罗伯逊,3,SCO,Andy Robertson
+Mohamed Belhadj Mahmoud,贝勒哈吉-马哈茂德,15,TUN,Hadj Mahmoud
+Wi-je Cho,赵伟济,14,KOR,Cho Gue-sung
+Danilo,达尼洛,13,BRA,Danilo Luiz
+Diney Borges,迪尼伊,3,CPV,Diney
+Abdelmouhib Chamakh,阿卜杜勒穆希卜-查马克,1,TUN,Mouhib Chamakh
+Ayoube Amaimouni-Echghouyab,阿迈穆尼-埃奇古亚布,21,MAR,Ayoube Amaimouni
+A. Diallo,阿马德-迪亚洛,15,CIV,Amad Diallo
+Aaron Tshibola,齐博拉,15,COD,Aaron Wan-Bissaka
+
+# === 不确定的 ===
+# Christopher Operi,克里斯托弗-奥佩里,13,CIV,?
+# Tyler Fletcher,泰勒-弗莱彻,8,SCO,?
+# Lutsharel Geertruida,海特勒伊达,2,NED,?
+# Assan Ouédraogo,阿桑-韦德拉奥果,25,GER,?
+# 山本昌邦,山本昌邦,,JPN,?

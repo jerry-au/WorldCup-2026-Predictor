@@ -1,0 +1,11 @@
+INFO:     Started server process [4448]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8008 (Press CTRL+C to quit)
+INFO:     127.0.0.1:7429 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7430 - "GET /api/v1/data/fetch/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7432 - "POST /api/v1/data/fetch/dongqiudi/national-rosters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7454 - "GET /api/v1/data/fetch/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:14688 - "GET / HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:14688 - "GET / HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:14688 - "GET / HTTP/1.1" 404 Not Found
