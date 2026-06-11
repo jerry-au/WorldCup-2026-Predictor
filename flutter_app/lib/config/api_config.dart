@@ -32,4 +32,12 @@ class ApiConfig {
   static const String dataRefreshEndpoint = '/data/refresh';
   static const String dataRefreshStatusEndpoint = '/data/refresh/status';
   static const String dataRefreshLogsEndpoint = '/data/refresh/logs';
+  // ─── Admin Data Management ──────────────────────────
+  static const String fetchStatusEndpoint = '/data/fetch/status';
+  static const String fetchPlayersEndpoint = '/data/refresh/trigger';
+  static const String fetchResultsEndpoint = '/data/fetch/results';
+  static const String fetchStandingsEndpoint = '/data/fetch/standings';
+  static const String fetchOddsEndpoint = '/data/refresh/trigger';
+  static const String fetchSeasonSummariesEndpoint = '/data/fetch/dongqiudi/player-season-summaries';
+  static const String fetchPlayerAbilitiesEndpoint = '/data/fetch/dongqiudi/player-abilities';
 }

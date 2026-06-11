@@ -151,4 +151,47 @@ class ApiService {
     );
     return resp.data;
   }
+
+  // ─── Admin Data Management ──────────────────────────
+
+  Future<dynamic> getFetchStatus() async {
+    final resp = await _dio.get(ApiConfig.fetchStatusEndpoint);
+    return resp.data;
+  }
+
+  Future<dynamic> triggerPlayerDataRefresh() async {
+    final resp = await _dio.post(
+      ApiConfig.fetchPlayersEndpoint,
+      queryParameters: {'source': 'dongqiudi'},
+    );
+    return resp.data;
+  }
+
+  Future<dynamic> triggerSeasonSummariesRefresh() async {
+    final resp = await _dio.post(ApiConfig.fetchSeasonSummariesEndpoint);
+    return resp.data;
+  }
+
+  Future<dynamic> triggerPlayerAbilitiesRefresh() async {
+    final resp = await _dio.post(ApiConfig.fetchPlayerAbilitiesEndpoint);
+    return resp.data;
+  }
+
+  Future<dynamic> triggerMatchResultsRefresh() async {
+    final resp = await _dio.post(ApiConfig.fetchResultsEndpoint);
+    return resp.data;
+  }
+
+  Future<dynamic> triggerStandingsRefresh() async {
+    final resp = await _dio.post(ApiConfig.fetchStandingsEndpoint);
+    return resp.data;
+  }
+
+  Future<dynamic> triggerOddsRefresh() async {
+    final resp = await _dio.post(
+      ApiConfig.fetchOddsEndpoint,
+      queryParameters: {'source': 'odds'},
+    );
+    return resp.data;
+  }
 }
