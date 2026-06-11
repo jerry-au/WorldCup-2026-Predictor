@@ -1,15 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pathlib import Path
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.team import Team
 from ..models.player_stats import PlayerSeasonStats
+from ..models.dongqiudi_data import DongqiudiPlayerData
 from ..schemas.team import TeamListOut, TeamDetailOut
 
 router = APIRouter(prefix="/api/v1/teams", tags=["teams"])
 
+STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "images"
 
-@router.get("", response_model=list[TeamListOut])
+
+@router.get("")
 def list_teams(
     confederation: str | None = Query(None),
     group: str | None = Query(None),
@@ -25,7 +29,26 @@ def list_teams(
     col = getattr(Team, sort_by, Team.elo_rating)
     q = q.order_by(col.desc() if sort_by != "name" else col.asc())
 
-    return q.all()
+    teams = q.all()
+    result = []
+    for t in teams:
+        flag_url = t.flag_url
+        if t.local_flag_path:
+            local_path = STATIC_DIR / t.local_flag_path
+            if local_path.exists():
+                flag_url = f"/static/images/{t.local_flag_path}"
+        result.append({
+            "code": t.code,
+            "name": t.name,
+            "name_cn": t.name_cn,
+            "iso": t.iso,
+            "confederation": t.confederation,
+            "group_name": t.group_name,
+            "flag_url": flag_url,
+            "elo_rating": t.elo_rating,
+            "fifa_rank": t.fifa_rank,
+        })
+    return result
 
 
 @router.get("/{code}", response_model=TeamDetailOut)
@@ -33,6 +56,29 @@ def get_team(code: str, db: Session = Depends(get_db)):
     team = db.query(Team).filter(Team.code == code.upper()).first()
     if not team:
         raise HTTPException(404, detail={"code": 1001, "message": "Team not found"})
+
+    # Build player_id -> photo_url mapping from dongqiudi data
+    player_photo_map: dict[int, str] = {}
+    dqd_players = (
+        db.query(DongqiudiPlayerData)
+        .filter(DongqiudiPlayerData.matched_player_id.isnot(None))
+        .all()
+    )
+    for dpd in dqd_players:
+        if dpd.matched_player_id:
+            photo_url = dpd.person_logo
+            if dpd.local_photo_path:
+                local_path = STATIC_DIR / dpd.local_photo_path
+                if local_path.exists():
+                    photo_url = f"/static/images/{dpd.local_photo_path}"
+            player_photo_map[dpd.matched_player_id] = photo_url
+
+    # Resolve team flag URL
+    flag_url = team.flag_url
+    if team.local_flag_path:
+        local_flag = STATIC_DIR / team.local_flag_path
+        if local_flag.exists():
+            flag_url = f"/static/images/{team.local_flag_path}"
 
     players_out = []
     for p in team.players:
@@ -61,6 +107,7 @@ def get_team(code: str, db: Session = Depends(get_db)):
             "age_at_tournament": p.age_at_tournament,
             "season_stats": stats_out,
             "best_position": best_pos,
+            "photo_url": player_photo_map.get(p.id),
         })
 
     starting_xi = _compute_starting_xi(players_out)
@@ -71,7 +118,7 @@ def get_team(code: str, db: Session = Depends(get_db)):
         "iso": team.iso,
         "confederation": team.confederation,
         "group_name": team.group_name,
-        "flag_url": team.flag_url,
+        "flag_url": flag_url,
         "elo_rating": team.elo_rating,
         "fifa_rank": team.fifa_rank,
         "market_value_eur": team.market_value_eur,

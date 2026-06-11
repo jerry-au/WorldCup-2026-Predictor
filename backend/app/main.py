@@ -1,11 +1,15 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
 from .api import auth, teams, predict, recommendations, data
 from .tasks.scheduler import start_scheduler
+
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 @asynccontextmanager
@@ -36,6 +40,10 @@ app.include_router(teams.router)
 app.include_router(predict.router)
 app.include_router(recommendations.router)
 app.include_router(data.router)
+
+# 静态文件服务（球员头像、国旗等）
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/api/v1/health")

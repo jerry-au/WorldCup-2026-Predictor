@@ -1,6 +1,7 @@
 class TeamSummary {
   final String code;
   final String name;
+  final String? nameCn;
   final String iso;
   final String confederation;
   final String groupName;
@@ -11,6 +12,7 @@ class TeamSummary {
   TeamSummary({
     required this.code,
     required this.name,
+    this.nameCn,
     required this.iso,
     required this.confederation,
     required this.groupName,
@@ -23,6 +25,7 @@ class TeamSummary {
     return TeamSummary(
       code: json['code'] as String,
       name: json['name'] as String,
+      nameCn: json['name_cn'] as String?,
       iso: json['iso'] as String,
       confederation: json['confederation'] as String,
       groupName: json['group_name'] as String,
@@ -31,6 +34,8 @@ class TeamSummary {
       fifaRank: json['fifa_rank'] as int,
     );
   }
+
+  String get displayName => nameCn ?? name;
 }
 
 class PlayerSeasonStats {
@@ -70,6 +75,7 @@ class Player {
   final int? ageAtTournament;
   final List<PlayerSeasonStats> seasonStats;
   final String? bestPosition;
+  final String? photoUrl;
 
   Player({
     required this.name,
@@ -79,6 +85,7 @@ class Player {
     this.ageAtTournament,
     this.seasonStats = const [],
     this.bestPosition,
+    this.photoUrl,
   });
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -93,6 +100,7 @@ class Player {
               .toList() ??
           [],
       bestPosition: json['best_position'] as String?,
+      photoUrl: json['photo_url'] as String?,
     );
   }
 }
@@ -100,6 +108,7 @@ class Player {
 class TeamDetail {
   final String code;
   final String name;
+  final String? nameCn;
   final String iso;
   final String confederation;
   final String groupName;
@@ -115,6 +124,7 @@ class TeamDetail {
   TeamDetail({
     required this.code,
     required this.name,
+    this.nameCn,
     required this.iso,
     required this.confederation,
     required this.groupName,
@@ -132,6 +142,7 @@ class TeamDetail {
     return TeamDetail(
       code: json['code'] as String,
       name: json['name'] as String,
+      nameCn: json['name_cn'] as String?,
       iso: json['iso'] as String,
       confederation: json['confederation'] as String,
       groupName: json['group_name'] as String,
@@ -151,6 +162,8 @@ class TeamDetail {
           [],
     );
   }
+
+  String get displayName => nameCn ?? name;
 
   static List<String> get confederations => ['AFC', 'CAF', 'CONCACAF', 'CONMEBOL', 'OFC', 'UEFA'];
   static const Map<String, String> confederationNames = {

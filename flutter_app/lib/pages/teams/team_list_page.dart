@@ -115,7 +115,7 @@ class _TeamListPageState extends ConsumerState<TeamListPage> {
             ),
             data: (teams) {
               final filtered = _searchController.text.isNotEmpty
-                  ? teams.where((t) => t.name.toLowerCase().contains(_searchController.text.toLowerCase())).toList()
+                  ? teams.where((t) => t.displayName.toLowerCase().contains(_searchController.text.toLowerCase())).toList()
                   : teams;
 
               if (filtered.isEmpty) {
@@ -159,6 +159,11 @@ class _TeamCard extends StatelessWidget {
 
   const _TeamCard({required this.team});
 
+  String _imagePathToUrl(String path) {
+    if (path.startsWith('http')) return path;
+    return 'http://127.0.0.1:9000$path';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -169,18 +174,23 @@ class _TeamCard extends StatelessWidget {
           tag: 'team_${team.code}',
           child: CircleAvatar(
             backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-            child: Text(
-              team.code,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-                fontSize: 12,
-              ),
-            ),
+            backgroundImage: team.flagUrl != null
+                ? NetworkImage(_imagePathToUrl(team.flagUrl!))
+                : null,
+            child: team.flagUrl == null
+                ? Text(
+                    team.code,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontSize: 12,
+                    ),
+                  )
+                : null,
           ),
         ),
         title: Text(
-          team.name,
+          team.displayName,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: Text(
@@ -205,7 +215,7 @@ class _TeamCard extends StatelessWidget {
           Navigator.of(context).push(
             PageRouteBuilder(
               pageBuilder: (context, animation, secondaryAnimation) =>
-                  TeamDetailPage(teamCode: team.code, teamName: team.name),
+                  TeamDetailPage(teamCode: team.code, teamName: team.displayName),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeTransition(
                   opacity: animation,

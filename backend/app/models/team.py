@@ -14,6 +14,8 @@ class Team(Base):
     confederation = Column(String(30))
     group_name = Column(String(2), index=True)
     flag_url = Column(String(500))
+    local_flag_path = Column(String(200))
+    name_cn = Column(String(100))
     coach_name = Column(String(100))
     coach_country = Column(String(100))
     elo_rating = Column(Float, default=1500.0)

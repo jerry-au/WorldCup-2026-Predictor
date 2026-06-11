@@ -72,6 +72,7 @@ class DongqiudiPlayerData(Base):
     person_name = Column(String(100))
     person_en_name = Column(String(200))
     person_logo = Column(String(500))
+    local_photo_path = Column(String(200))
     jersey_number = Column(Integer, nullable=True)
     age_text = Column(String(30))
     club_name_cn = Column(String(100))

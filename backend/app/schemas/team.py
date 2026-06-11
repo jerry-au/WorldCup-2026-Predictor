@@ -20,6 +20,7 @@ class PlayerOut(BaseModel):
     age_at_tournament: int | None
     season_stats: list[PlayerSeasonStatsOut] = []
     best_position: str | None = None
+    photo_url: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -27,6 +28,7 @@ class PlayerOut(BaseModel):
 class TeamListOut(BaseModel):
     code: str
     name: str
+    name_cn: str | None = None
     iso: str
     confederation: str
     group_name: str

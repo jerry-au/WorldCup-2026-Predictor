@@ -51,20 +51,26 @@ class _TeamDetailContent extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
+                // 国旗头像
                 CircleAvatar(
                   radius: 32,
                   backgroundColor: Colors.grey.shade200,
-                  child: Text(
-                    team.code,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
+                  backgroundImage: team.flagUrl != null
+                      ? NetworkImage(_imagePathToUrl(team.flagUrl!))
+                      : null,
+                  child: team.flagUrl == null
+                      ? Text(
+                          team.code,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(height: 12),
-                Text(team.name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                Text(team.nameCn ?? team.name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Text(
                   '${TeamDetail.confederationNames[team.confederation] ?? team.confederation} · ${team.groupName}组',
@@ -139,10 +145,7 @@ class _TeamDetailContent extends StatelessWidget {
                       tilePadding: EdgeInsets.zero,
                       childrenPadding: const EdgeInsets.only(left: 56, bottom: 8),
                       dense: true,
-                      leading: CircleAvatar(
-                        radius: 16,
-                        child: Text('${player.jersey ?? '?'}', style: const TextStyle(fontSize: 11)),
-                      ),
+                      leading: _playerAvatar(player, radius: 18),
                       title: Text(player.name, style: const TextStyle(fontWeight: FontWeight.w500)),
                       subtitle: Text(
                         [
@@ -171,6 +174,29 @@ class _TeamDetailContent extends StatelessWidget {
           ),
         ).animate().fadeIn(delay: 100.ms),
       ],
+    );
+  }
+
+  /// 将后端返回的路径转为完整 URL（本地 /static/images/xxx 或外网 URL）
+  String _imagePathToUrl(String path) {
+    if (path.startsWith('http')) return path;
+    return 'http://127.0.0.1:9000$path';
+  }
+
+  Widget _playerAvatar(Player player, {double radius = 20}) {
+    if (player.photoUrl != null && player.photoUrl!.isNotEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: NetworkImage(_imagePathToUrl(player.photoUrl!)),
+      );
+    }
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.grey.shade200,
+      child: Text(
+        '${player.jersey ?? '?'}',
+        style: TextStyle(fontSize: radius * 0.55, fontWeight: FontWeight.bold),
+      ),
     );
   }
 
@@ -203,14 +229,7 @@ class _TeamDetailContent extends StatelessWidget {
   Widget _playerBubble(BuildContext context, Player player, Color color) {
     return Column(
       children: [
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: color.withOpacity(0.15),
-          child: Text(
-            '${player.jersey ?? '?'}',
-            style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14),
-          ),
-        ),
+        _playerAvatar(player, radius: 22),
         const SizedBox(height: 4),
         SizedBox(
           width: 60,
@@ -236,9 +255,9 @@ class _TeamDetailContent extends StatelessWidget {
   }
 
   String _formatValue(double value) {
-    if (value >= 1e9) return '€${(value / 1e9).toStringAsFixed(1)}B';
-    if (value >= 1e6) return '€${(value / 1e6).toStringAsFixed(0)}M';
-    if (value >= 1e3) return '€${(value / 1e3).toStringAsFixed(0)}K';
-    return '€${value.toStringAsFixed(0)}';
+    if (value >= 1e9) return '\u20ac${(value / 1e9).toStringAsFixed(1)}B';
+    if (value >= 1e6) return '\u20ac${(value / 1e6).toStringAsFixed(0)}M';
+    if (value >= 1e3) return '\u20ac${(value / 1e3).toStringAsFixed(0)}K';
+    return '\u20ac${value.toStringAsFixed(0)}';
   }
 }
