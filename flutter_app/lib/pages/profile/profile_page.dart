@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/data_refresh_provider.dart';
 import '../../services/providers.dart';
+import '../../pages/admin/admin_page.dart';
 
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
@@ -28,6 +29,48 @@ class ProfilePage extends ConsumerWidget {
                 Text('2026 美加墨', style: TextStyle(color: Colors.grey.shade600)),
               ],
             ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // 管理入口卡片
+        Card(
+          child: ListTile(
+            leading: Icon(
+              Icons.admin_panel_settings,
+              color: Colors.orange.shade600,
+              size: 28,
+            ),
+            title: Text(
+              '管理面板',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            subtitle: Text(
+              '球员、比赛、赔率数据管理',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
+            trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            onTap: () {
+              Navigator.push(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) => const AdminPage(),
+                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                    const begin = Offset(1.0, 0.0);
+                    const end = Offset.zero;
+                    const curve = Curves.easeInOut;
+                    var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                    return SlideTransition(
+                      position: animation.drive(tween),
+                      child: child,
+                    );
+                  },
+                ),
+              );
+            },
           ),
         ),
         const SizedBox(height: 12),
