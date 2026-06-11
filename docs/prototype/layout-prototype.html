@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorldCup 2026 — Layout Prototype</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+  
+  /* Layout */
+  .prototype-container { display: flex; gap: 40px; padding: 40px; justify-content: center; flex-wrap: wrap; }
+  .phone { width: 375px; height: 720px; background: #16213e; border-radius: 32px; border: 4px solid #0f3460; overflow: hidden; display: flex; flex-direction: column; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .phone-label { text-align: center; font-size: 14px; color: #a0a0c0; margin-bottom: 8px; font-weight: 600; }
+  
+  /* Status bar */
+  .status-bar { height: 44px; background: #0f3460; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 12px; color: #a0a0c0; }
+  
+  /* App Bar */
+  .app-bar { height: 56px; background: linear-gradient(135deg, #1a1a6e, #0f3460); display: flex; align-items: center; padding: 0 16px; font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+  .app-bar .icon { margin-right: 12px; font-size: 22px; }
+  
+  /* Content */
+  .content { flex: 1; overflow-y: auto; padding: 16px; }
+  .content::-webkit-scrollbar { display: none; }
+  
+  /* Cards */
+  .card { background: #1e2a4a; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .card-icon { font-size: 40px; text-align: center; margin-bottom: 12px; }
+  .card-title { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+  .card-desc { font-size: 12px; color: #8888aa; text-align: center; margin-bottom: 16px; }
+  
+  /* Button */
+  .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; text-align: center; }
+  .btn-primary { background: linear-gradient(135deg, #e94560, #c23152); color: #fff; }
+  .btn-outline { background: transparent; border: 2px solid #e94560; color: #e94560; margin-top: 8px; }
+  
+  /* Bottom Nav */
+  .bottom-nav { display: flex; background: #0f3460; border-top: 1px solid #1a1a6e; height: 64px; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 10px; color: #8888aa; cursor: pointer; transition: color 0.2s; }
+  .nav-item.active { color: #e94560; }
+  .nav-item .nav-icon { font-size: 22px; }
+  
+  /* Team list */
+  .team-item { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #2a2a5a; }
+  .team-flag { width: 36px; height: 36px; border-radius: 50%; background: #2a2a5a; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; margin-right: 12px; }
+  .team-info { flex: 1; }
+  .team-name { font-size: 15px; font-weight: 600; }
+  .team-sub { font-size: 11px; color: #8888aa; }
+  .team-elo { font-size: 13px; font-weight: 600; }
+  .team-rank { font-size: 11px; color: #8888aa; }
+  
+  /* Search/filter */
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .filter-chip { flex: 1; padding: 8px 12px; background: #1e2a4a; border-radius: 8px; font-size: 12px; color: #a0a0c0; border: 1px solid #2a2a5a; }
+  
+  /* Group table */
+  .group-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .group-table th { padding: 8px 4px; font-weight: 600; color: #a0a0c0; border-bottom: 2px solid #2a2a5a; text-align: center; white-space: nowrap; }
+  .group-table th:first-child, .group-table td:first-child { text-align: left; }
+  .group-table td { padding: 8px 4px; border-bottom: 1px solid #1a1a3e; text-align: center; }
+  .group-table .team-cell { display: flex; align-items: center; gap: 6px; }
+  .group-table .flag-sm { width: 20px; height: 20px; border-radius: 50%; background: #2a2a5a; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+  .group-header { font-size: 14px; font-weight: 700; color: #e94560; margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #2a2a5a; }
+  .group-header:first-child { margin-top: 0; }
+  
+  /* Tabs */
+  .tabs { display: flex; margin-bottom: 16px; gap: 8px; }
+  .tab { flex: 1; padding: 10px; text-align: center; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; background: #1e2a4a; color: #8888aa; }
+  .tab.active { background: #e94560; color: #fff; }
+  
+  /* Match item */
+  .match-item { background: #1e2a4a; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .match-meta { font-size: 11px; color: #8888aa; margin-bottom: 8px; }
+  .match-teams { display: flex; align-items: center; justify-content: space-between; }
+  .match-team { font-size: 14px; font-weight: 600; }
+  .match-score { font-size: 18px; font-weight: 700; color: #e94560; }
+  .match-pred { font-size: 10px; color: #aaa; margin-top: 6px; text-align: center; }
+  
+  /* Prediction row */
+  .pred-row { display: flex; justify-content: space-around; margin-top: 12px; }
+  .pred-item { text-align: center; }
+  .pred-label { font-size: 11px; color: #8888aa; }
+  .pred-value { font-size: 20px; font-weight: 700; color: #e94560; }
+  
+  /* Section title */
+  .section-title { font-size: 14px; font-weight: 600; color: #a0a0c0; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .section-title::before { content: ''; width: 3px; height: 14px; background: #e94560; border-radius: 2px; }
+  
+  /* Highlight */
+  .highlight-new { position: relative; }
+  .highlight-new::after { content: 'NEW'; position: absolute; top: -4px; right: -4px; background: #e94560; color: #fff; font-size: 8px; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+  
+  /* Arrow indicator */
+  .arrow-indicator { display: inline-block; color: #e94560; margin: 0 4px; }
+</style>
+</head>
+<body>
+
+<h1 style="text-align:center; padding:30px 0 10px; font-size:22px; color:#e94560;">WorldCup 2026 页面布局调整原型</h1>
+<p style="text-align:center; color:#8888aa; margin-bottom:20px; font-size:14px;">左右三个手机分别展示：赛事模拟页（新增球队详情卡片） → 赛程页（全新） → 投注推荐页</p>
+
+<div class="prototype-container">
+
+<!-- ===== PHONE 1: 赛事模拟页 ===== -->
+<div>
+  <div class="phone-label">1. 赛事模拟页（调整后）</div>
+  <div class="phone">
+    <div class="status-bar"><span>9:41</span><span>●●●</span></div>
+    <div class="app-bar"><span class="icon">📊</span>赛事模拟</div>
+    <div class="content">
+      <!-- Control Card -->
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <div class="card-title">2026 世界杯赛事模拟</div>
+        <div class="card-desc">基于混合泊松-Elo 模型 · 蒙特卡洛 10,000 次</div>
+        <button class="btn btn-primary">▶ 运行模拟</button>
+      </div>
+      
+      <!-- Prediction Card -->
+      <div class="card">
+        <div class="card-icon">⚽</div>
+        <div class="card-title">对战预测</div>
+        <div class="card-desc">选择两支球队，查看单场胜平负概率与比分预测</div>
+        <button class="btn btn-primary">⚽ 进入对战预测</button>
+      </div>
+      
+      <!-- NEW: Team Detail Card -->
+      <div class="card" style="border: 2px dashed #e94560;">
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px;">
+          <span class="card-icon" style="margin-bottom:0;">👥</span>
+          <span style="background:#e94560;color:#fff;font-size:9px;padding:2px 8px;border-radius:4px;font-weight:700;">新增</span>
+        </div>
+        <div class="card-title">球队详情</div>
+        <div class="card-desc">浏览全部 48 支参赛球队数据，支持搜索、筛选与排序</div>
+        <button class="btn btn-primary">👥 进入球队详情</button>
+      </div>
+      
+      <!-- Results (after simulation) -->
+      <div class="section-title">晋级概率排行榜</div>
+      <div style="background:#1e2a4a;border-radius:10px;padding:12px;">
+        <div class="team-item" style="border-bottom:none;">
+          <span style="color:#e94560;font-weight:700;width:20px;">1</span>
+          <div class="team-flag">🇧🇷</div>
+          <div class="team-info">
+            <div class="team-name">巴西</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="team-elo" style="color:#4caf50;">18.2%</div>
+            <div class="team-rank">夺冠概率</div>
+          </div>
+        </div>
+        <div class="team-item" style="border-bottom:none;">
+          <span style="color:#aaa;font-weight:700;width:20px;">2</span>
+          <div class="team-flag">🇫🇷</div>
+          <div class="team-info">
+            <div class="team-name">法国</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="team-elo" style="color:#4caf50;">15.7%</div>
+            <div class="team-rank">夺冠概率</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="bottom-nav">
+      <div class="nav-item"><span class="nav-icon">📅</span>当日赛事</div>
+      <div class="nav-item active"><span class="nav-icon">📊</span>赛事模拟</div>
+      <div class="nav-item"><span class="nav-icon"></span>赛程</div>
+      <div class="nav-item"><span class="nav-icon">📈</span>投注推荐</div>
+      <div class="nav-item"><span class="nav-icon">👤</span>我的</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PHONE 2: 赛程页 ===== -->
+<div>
+  <div class="phone-label">2. 赛程页（全新）</div>
+  <div class="phone">
+    <div class="status-bar"><span>9:41</span><span>●●●</span></div>
+    <div class="app-bar"><span class="icon"></span>赛程</div>
+    <div class="content">
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active">小组赛</div>
+        <div class="tab">淘汰赛</div>
+        <div class="tab">积分榜</div>
+      </div>
+      
+      <!-- Group A -->
+      <div class="group-header">A 组</div>
+      <table class="group-table">
+        <tr><th>球队</th><th>赛</th><th>胜</th><th>平</th><th>负</th><th>积分</th></tr>
+        <tr>
+          <td><div class="team-cell"><div class="flag-sm">🇲🇽</div>墨西哥</div></td>
+          <td>0</td><td>0</td><td>0</td><td>0</td><td style="font-weight:700;">0</td>
+        </tr>
+        <tr>
+          <td><div class="team-cell"><div class="flag-sm">🇷</div>韩国</div></td>
+          <td>0</td><td>0</td><td>0</td><td>0</td><td style="font-weight:700;">0</td>
+        </tr>
+        <tr>
+          <td><div class="team-cell"><div class="flag-sm">🇿🇦</div>南非</div></td>
+          <td>0</td><td>0</td><td>0</td><td>0</td><td style="font-weight:700;">0</td>
+        </tr>
+        <tr>
+          <td><div class="team-cell"><div class="flag-sm">🇨🇿</div>捷克</div></td>
+          <td>0</td><td>0</td><td>0</td><td>0</td><td style="font-weight:700;">0</td>
+        </tr>
+      </table>
+      
+      <!-- Group B -->
+      <div class="group-header">B 组</div>
+      <table class="group-table">
+        <tr><th>球队</th><th>赛</th><th>胜</th><th>平</th><th>负</th><th>积分</th></tr>
+        <tr>
+          <td><div class="team-cell"><div class="flag-sm">🇨🇦</div>加拿大</div></td>
+          <td>0</td><td>0</td><td>0</td><td>0</td><td style="font-weight:700;">0</td>
+        </tr>
+        <tr>
+          <td><div class="team-cell"><div class="flag-sm">🇨🇭</div>瑞士</div></td>
+          <td>0</td><td>0</td><td>0</td><td>0</td><td style="font-weight:700;">0</td>
+        </tr>
+        <tr>
+          <td><div class="team-cell"><div class="flag-sm">🇶🇦</div>卡塔尔</div></td>
+          <td>0</td><td>0</td><td>0</td><td>0</td><td style="font-weight:700;">0</td>
+        </tr>
+        <tr>
+          <td><div class="team-cell"><div class="flag-sm">🇧🇦</div>波黑</div></td>
+          <td>0</td><td>0</td><td>0</td><td>0</td><td style="font-weight:700;">0</td>
+        </tr>
+      </table>
+      
+      <!-- Upcoming matches -->
+      <div class="section-title" style="margin-top:20px;">今日赛程</div>
+      <div class="match-item">
+        <div class="match-meta">6月11日 20:00 · A组</div>
+        <div class="match-teams">
+          <span class="match-team">🇲🇽 墨西哥</span>
+          <span class="match-score">-</span>
+          <span class="match-team">🇷 韩国</span>
+        </div>
+        <div class="match-pred">预测: 墨西哥 45% / 28% / 27%</div>
+      </div>
+      <div class="match-item">
+        <div class="match-meta">6月11日 23:00 · B组</div>
+        <div class="match-teams">
+          <span class="match-team">🇦 加拿大</span>
+          <span class="match-score">-</span>
+          <span class="match-team">🇨🇭 瑞士</span>
+        </div>
+        <div class="match-pred">预测: 加拿大 32% / 26% / 42%</div>
+      </div>
+    </div>
+    
+    <div class="bottom-nav">
+      <div class="nav-item"><span class="nav-icon">📅</span>当日赛事</div>
+      <div class="nav-item"><span class="nav-icon">📊</span>赛事模拟</div>
+      <div class="nav-item active"><span class="nav-icon">📋</span>赛程</div>
+      <div class="nav-item"><span class="nav-icon">📈</span>投注推荐</div>
+      <div class="nav-item"><span class="nav-icon"></span>我的</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PHONE 3: 投注推荐页 ===== -->
+<div>
+  <div class="phone-label">3. 投注推荐页</div>
+  <div class="phone">
+    <div class="status-bar"><span>9:41</span><span>●●●</span></div>
+    <div class="app-bar"><span class="icon">📈</span>投注推荐</div>
+    <div class="content">
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active">价值投注</div>
+        <div class="tab">赔率偏差</div>
+      </div>
+      
+      <div class="section-title">高价值投注机会</div>
+      
+      <div class="match-item">
+        <div class="match-meta">6月11日 20:00 · A组</div>
+        <div class="match-teams">
+          <span class="match-team">🇲🇽 墨西哥</span>
+          <span class="match-score">-</span>
+          <span class="match-team">🇰🇷 韩国</span>
+        </div>
+        <div class="pred-row">
+          <div class="pred-item">
+            <div class="pred-label">胜</div>
+            <div class="pred-value">45%</div>
+          </div>
+          <div class="pred-item">
+            <div class="pred-label">平</div>
+            <div class="pred-value">28%</div>
+          </div>
+          <div class="pred-item">
+            <div class="pred-label">负</div>
+            <div class="pred-value">27%</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;padding:8px;background:#1a3a2a;border-radius:6px;font-size:11px;color:#4caf50;">
+          ✅ 市场赔率偏离系统概率 +12% — 建议投注"墨西哥胜"
+        </div>
+      </div>
+      
+      <div class="match-item">
+        <div class="match-meta">6月12日 02:00 · C组</div>
+        <div class="match-teams">
+          <span class="match-team">🇩🇪 德国</span>
+          <span class="match-score">-</span>
+          <span class="match-team">🇯🇵 日本</span>
+        </div>
+        <div class="pred-row">
+          <div class="pred-item">
+            <div class="pred-label">胜</div>
+            <div class="pred-value">62%</div>
+          </div>
+          <div class="pred-item">
+            <div class="pred-label">平</div>
+            <div class="pred-value">22%</div>
+          </div>
+          <div class="pred-item">
+            <div class="pred-label">负</div>
+            <div class="pred-value">16%</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;padding:8px;background:#1a3a2a;border-radius:6px;font-size:11px;color:#4caf50;">
+          ✅ 市场赔率偏离系统概率 +8% — 建议投注"德国胜"
+        </div>
+      </div>
+    </div>
+    
+    <div class="bottom-nav">
+      <div class="nav-item"><span class="nav-icon">📅</span>当日赛事</div>
+      <div class="nav-item"><span class="nav-icon">📊</span>赛事模拟</div>
+      <div class="nav-item"><span class="nav-icon"></span>赛程</div>
+      <div class="nav-item active"><span class="nav-icon">📈</span>投注推荐</div>
+      <div class="nav-item"><span class="nav-icon">👤</span>我的</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div style="text-align:center; padding:30px; color:#8888aa; font-size:13px;">
+  <strong style="color:#e94560;">主要变更：</strong><br><br>
+  1️⃣ 底部导航移除"球队"入口，替换为"赛程"入口<br>
+  2️⃣ 赛事模拟页新增"球队详情"功能卡片（虚线框标注）<br>
+  3️⃣ 赛程页包含小组赛表格 + 今日赛程 + 预测数据<br>
+  4️ 底部导航栏保持 5 个入口，顺序：当日赛事 → 赛事模拟 → 赛程 → 投注推荐 → 我的
+</div>
+
+</body>
+</html>
