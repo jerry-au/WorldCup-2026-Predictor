@@ -9,7 +9,10 @@ final predictionProvider = FutureProvider.family<MatchPrediction, PredictionPara
     teamBCode: params.teamBCode,
     matchType: params.matchType,
   );
-  return MatchPrediction.fromJson(data as Map<String, dynamic>);
+  if (data == null || data is! Map<String, dynamic>) {
+    throw Exception('服务器返回了无效的预测数据');
+  }
+  return MatchPrediction.fromJson(data);
 });
 
 class PredictionParams {

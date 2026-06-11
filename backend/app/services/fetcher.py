@@ -56,7 +56,7 @@ class DataFetcher:
     def __init__(self):
         self.limiters = {
             "football-data.org": RateLimiter(8),   # keep 2 buffer below 10/min
-            "zafronix": RateLimiter(30),            # 250/day ≈ 10/hr
+            "zafronix": RateLimiter(8),             # 250/day ≈ 10/hr, keep buffer
             "odds-api": RateLimiter(2),             # 500/month ≈ 1/90min
         }
         self.queue: list[FetchJob] = []

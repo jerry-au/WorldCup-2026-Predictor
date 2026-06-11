@@ -40,7 +40,11 @@ async def predict_match(body: PredictRequest, db: Session = Depends(get_db)):
 
     prediction = engine.predict(team_a, team_b, body.match_type)
 
-    odds_data = await odds_client.fetch_h2h_odds(team_a, team_b)
+    try:
+        odds_data = await odds_client.fetch_h2h_odds(team_a, team_b)
+    except Exception:
+        odds_data = None
+
     betting = recommendation_engine.analyze(
         system_probs=prediction["probabilities"],
         system_confidence=prediction["system_confidence"],

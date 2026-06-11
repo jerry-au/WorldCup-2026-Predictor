@@ -120,7 +120,7 @@ async def discrepancies(
     alerts = []
     for c in valid_cache:
         disc = json.loads(c.result_data)
-        if disc.get("detected") and disc.get("max_delta", 0) >= min_delta:
+        if disc and disc.get("detected") and disc.get("max_delta", 0) >= min_delta:
             team_a = db.query(Team).filter(Team.code == c.team_a_code).first()
             team_b = db.query(Team).filter(Team.code == c.team_b_code).first()
             if team_a and team_b:

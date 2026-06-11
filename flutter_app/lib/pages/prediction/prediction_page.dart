@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/prediction.dart';
 import '../../providers/prediction_provider.dart';
 import '../../providers/teams_provider.dart';
+import '../../services/share_service.dart';
 import '../../widgets/probability_gauge.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -154,9 +155,33 @@ class _PredictionResult extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                Text(
-                  '${prediction.teamA.name} vs ${prediction.teamB.name}',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${prediction.teamA.name} vs ${prediction.teamB.name}',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.share),
+                      onPressed: () {
+                        ShareService.sharePrediction(
+                          teamA: prediction.teamA.name,
+                          teamB: prediction.teamB.name,
+                          winProb: probs.win,
+                          drawProb: probs.draw,
+                          loseProb: probs.lose,
+                          matchType: prediction.matchType,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('预测结果已复制到剪贴板')),
+                        );
+                      },
+                      tooltip: '分享预测',
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 ConfidenceBadge(confidence: prediction.systemConfidence),
@@ -268,40 +293,7 @@ class _PredictionResult extends StatelessWidget {
                 Text('维度分解',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const Divider(),
-                ...prediction.breakdown.entries.map((entry) {
-                  final dim = entry.value as Map<String, dynamic>;
-                  final a = (dim['a_score'] as num?)?.toDouble() ?? 0;
-                  final b = (dim['b_score'] as num?)?.toDouble() ?? 0;
-                  final contrib = (dim['contribution'] as num?)?.toDouble() ?? 0;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(_dimLabel(entry.key), style: const TextStyle(fontWeight: FontWeight.w500)),
-                            Text('权重 ${(contrib * 100).toStringAsFixed(0)}%',
-                                style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        ProbabilityBar(
-                          probability: a / (a + b),
-                          label: prediction.teamA.name,
-                          color: Colors.green,
-                        ),
-                        const SizedBox(height: 2),
-                        ProbabilityBar(
-                          probability: b / (a + b),
-                          label: prediction.teamB.name,
-                          color: Colors.red,
-                        ),
-                      ],
-                    ),
-                  );
-                }),
+                _BreakdownView(breakdown: prediction.breakdown),
               ],
             ),
           ),
@@ -321,21 +313,6 @@ class _PredictionResult extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _dimLabel(String key) {
-    switch (key) {
-      case 'strength':
-        return '综合实力';
-      case 'history':
-        return '历史交锋';
-      case 'form':
-        return '近期状态';
-      case 'realtime':
-        return '实时因素';
-      default:
-        return key;
-    }
   }
 }
 
@@ -374,5 +351,42 @@ class _BettingRecTile extends StatelessWidget {
         children: List.generate(count, (_) => const Icon(Icons.star, size: 12, color: Colors.amber)),
       ),
     );
+  }
+}
+
+class _BreakdownView extends StatelessWidget {
+  final Map<String, dynamic> breakdown;
+
+  const _BreakdownView({required this.breakdown});
+
+  @override
+  Widget build(BuildContext context) {
+    // breakdown 实际格式: {"elo_expected_a": 0.6267, "expected_goals_a": 2.82, "expected_goals_b": 2.39}
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: breakdown.entries.map((entry) {
+        final value = entry.value;
+        final displayValue = value is num ? value.toStringAsFixed(2) : value.toString();
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_breakdownLabel(entry.key), style: const TextStyle(fontSize: 13)),
+              Text(displayValue, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  String _breakdownLabel(String key) {
+    switch (key) {
+      case 'elo_expected_a': return '主队 Elo 期望胜率';
+      case 'expected_goals_a': return '主队期望进球';
+      case 'expected_goals_b': return '客队期望进球';
+      default: return key;
+    }
   }
 }

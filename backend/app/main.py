@@ -5,12 +5,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db
 from .api import auth, teams, predict, recommendations, data
+from .tasks.scheduler import start_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    scheduler = start_scheduler()
     yield
+    scheduler.shutdown()
 
 
 app = FastAPI(

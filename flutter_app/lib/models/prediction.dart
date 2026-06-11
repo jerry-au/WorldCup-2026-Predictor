@@ -79,8 +79,9 @@ class BettingInfo {
   factory BettingInfo.fromJson(Map<String, dynamic> json) {
     return BettingInfo(
       systemConfidence: (json['system_confidence'] as num?)?.toDouble() ?? 0,
-      oddsComparison:
-          OddsComparison.fromJson(json['odds_comparison'] as Map<String, dynamic>),
+      oddsComparison: json['odds_comparison'] != null
+          ? OddsComparison.fromJson(json['odds_comparison'] as Map<String, dynamic>)
+          : OddsComparison.empty(),
       recommendations: (json['recommendations'] as List<dynamic>?)
               ?.map((e) => BettingRecommendation.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -104,6 +105,13 @@ class OddsComparison {
     required this.bestOdds,
     required this.marketImplied,
   });
+
+  factory OddsComparison.empty() => OddsComparison(
+        providerCount: 0,
+        marketAvg: {},
+        bestOdds: {},
+        marketImplied: {},
+      );
 
   factory OddsComparison.fromJson(Map<String, dynamic> json) {
     return OddsComparison(
