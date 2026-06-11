@@ -5,6 +5,8 @@ import '../../models/simulation.dart';
 import '../../providers/simulation_provider.dart';
 import '../../widgets/common_widgets.dart';
 import 'bracket_painter.dart';
+import '../prediction/prediction_page.dart';
+import '../teams/team_list_page.dart';
 
 class SimulationPage extends ConsumerWidget {
   const SimulationPage({super.key});
@@ -21,6 +23,12 @@ class SimulationPage extends ConsumerWidget {
         children: [
           // ─── Control Card ──────────────────────────────────
           _buildControlCard(context, state, notifier),
+          const SizedBox(height: 16),
+
+          // ─── Entry Cards ──────────────────────────────────
+          _buildPredictionEntryCard(context),
+          const SizedBox(height: 12),
+          _buildTeamEntryCard(context),
           const SizedBox(height: 16),
 
           // ─── Loading / Results ──────────────────────────────
@@ -100,6 +108,70 @@ class SimulationPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  // ─── Entry Cards ──────────────────────────────────────────
+
+  Widget _buildPredictionEntryCard(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const PredictionPage()),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Icon(Icons.sports_soccer, size: 40, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('对战预测', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text('选择两支球队，查看单场胜平负概率与比分预测', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            ],
+          ),
+        ),
+      ),
+    ).animate().fadeIn(delay: 50.ms);
+  }
+
+  Widget _buildTeamEntryCard(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const TeamListPage()),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Icon(Icons.groups, size: 40, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('球队详情', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text('浏览全部 48 支参赛球队数据，支持搜索、筛选与排序', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            ],
+          ),
+        ),
+      ),
+    ).animate().fadeIn(delay: 100.ms);
   }
 
   // ─── Progress ─────────────────────────────────────────────────

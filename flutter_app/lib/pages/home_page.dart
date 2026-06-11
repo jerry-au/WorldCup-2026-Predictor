@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'prediction/prediction_page.dart';
 import 'simulation/simulation_page.dart';
-import 'teams/team_list_page.dart';
-import 'profile/profile_page.dart';
+import 'today_matches/today_matches_page.dart';
+import 'schedule/schedule_page.dart';
 import 'betting/betting_page.dart';
+import 'profile/profile_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -16,9 +16,9 @@ class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
   final _pages = const [
-    PredictionPage(),
+    TodayMatchesPage(),
     SimulationPage(),
-    TeamListPage(),
+    SchedulePage(),
     BettingPage(),
     ProfilePage(),
   ];
@@ -39,9 +39,9 @@ class _HomePageState extends State<HomePage> {
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.sports_soccer_outlined),
-            selectedIcon: Icon(Icons.sports_soccer),
-            label: '对战预测',
+            icon: Icon(Icons.today_outlined),
+            selectedIcon: Icon(Icons.today),
+            label: '当日赛事',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
@@ -49,9 +49,9 @@ class _HomePageState extends State<HomePage> {
             label: '赛事模拟',
           ),
           NavigationDestination(
-            icon: Icon(Icons.groups_outlined),
-            selectedIcon: Icon(Icons.groups),
-            label: '球队',
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: '赛程',
           ),
           NavigationDestination(
             icon: Icon(Icons.trending_up_outlined),
@@ -69,9 +69,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   static const _titles = [
-    '对战预测',
+    '当日赛事',
     '赛事模拟',
-    '球队详情',
+    '赛程',
     '投注推荐',
     '我的',
   ];
