@@ -37,7 +37,7 @@ final adminFetchStatusProvider = FutureProvider.autoDispose<Map<String, dynamic>
 });
 
 // Provider for players status
-final adminDataSourceStatusProvider = Provider<AsyncValue<AdminDataSourceStatus>>((ref) {
+final adminDataSourceStatusProvider = Provider.autoDispose<AsyncValue<AdminDataSourceStatus>>((ref) {
   final statusAsync = ref.watch(adminFetchStatusProvider);
   return statusAsync.when(
     data: (data) {
@@ -56,7 +56,7 @@ final adminDataSourceStatusProvider = Provider<AsyncValue<AdminDataSourceStatus>
 });
 
 // Provider for match results status
-final adminMatchResultsStatusProvider = Provider<AsyncValue<AdminDataSourceStatus>>((ref) {
+final adminMatchResultsStatusProvider = Provider.autoDispose<AsyncValue<AdminDataSourceStatus>>((ref) {
   final statusAsync = ref.watch(adminFetchStatusProvider);
   return statusAsync.when(
     data: (data) {
@@ -74,7 +74,7 @@ final adminMatchResultsStatusProvider = Provider<AsyncValue<AdminDataSourceStatu
 });
 
 // Provider for standings status
-final adminStandingsStatusProvider = Provider<AsyncValue<AdminDataSourceStatus>>((ref) {
+final adminStandingsStatusProvider = Provider.autoDispose<AsyncValue<AdminDataSourceStatus>>((ref) {
   final statusAsync = ref.watch(adminFetchStatusProvider);
   return statusAsync.when(
     data: (data) {
@@ -92,7 +92,7 @@ final adminStandingsStatusProvider = Provider<AsyncValue<AdminDataSourceStatus>>
 });
 
 // Provider for odds status
-final adminOddsStatusProvider = Provider<AsyncValue<AdminDataSourceStatus>>((ref) {
+final adminOddsStatusProvider = Provider.autoDispose<AsyncValue<AdminDataSourceStatus>>((ref) {
   final statusAsync = ref.watch(adminFetchStatusProvider);
   return statusAsync.when(
     data: (data) {
