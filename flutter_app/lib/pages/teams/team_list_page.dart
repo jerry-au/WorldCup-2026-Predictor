@@ -29,7 +29,16 @@ class _TeamListPageState extends ConsumerState<TeamListPage> {
     final filter = TeamsFilter(confederation: _filterConfederation, sortBy: _sortBy);
     final teamsAsync = ref.watch(teamsListProvider(filter));
 
-    return Column(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('球队列表'),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Column(
       children: [
         FadeInWidget(
           delay: const Duration(milliseconds: 100),
@@ -150,6 +159,7 @@ class _TeamListPageState extends ConsumerState<TeamListPage> {
           ),
         ),
       ],
+      ),
     );
   }
 }

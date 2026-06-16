@@ -15,7 +15,7 @@ from ..schemas.predict import (
 )
 from ..core.prediction import PredictionEngine
 from ..core.simulation import MonteCarloEngine, TeamInGroup
-from ..core.elo import composite_rating
+from ..core.elo import composite_rating, get_team_dongqiudi_strength, get_team_market_value
 from ..services.odds import odds_client
 from ..services.recommendation import recommendation_engine
 
@@ -38,7 +38,7 @@ async def predict_match(body: PredictRequest, db: Session = Depends(get_db)):
     if team_a.code == team_b.code:
         raise HTTPException(400, detail={"code": 1003, "message": "Cannot predict same team"})
 
-    prediction = engine.predict(team_a, team_b, body.match_type)
+    prediction = engine.predict(team_a, team_b, db, body.match_type)
 
     try:
         odds_data = await odds_client.fetch_h2h_odds(team_a, team_b)
@@ -87,14 +87,16 @@ def _run_simulation(task_id: str):
         team_names: dict[str, str] = {}
 
         for t in teams:
+            strength = get_team_dongqiudi_strength(db, t)
+            mv = get_team_market_value(db, t)
             groups.setdefault(t.group_name, []).append(
                 TeamInGroup(
                     code=t.code,
                     group=t.group_name,
-                    composite=composite_rating(elo=t.elo_rating, fifa_rank=t.fifa_rank),
+                    composite=composite_rating(elo=t.elo_rating, dongqiudi_strength=strength, market_value_eur=mv),
                 )
             )
-            team_names[t.code] = t.name
+            team_names[t.code] = t.name_cn or t.name
 
         _task_registry[task_id]["progress"] = 0.1
 

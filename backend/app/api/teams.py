@@ -57,8 +57,9 @@ def get_team(code: str, db: Session = Depends(get_db)):
     if not team:
         raise HTTPException(404, detail={"code": 1001, "message": "Team not found"})
 
-    # Build player_id -> photo_url mapping from dongqiudi data
+    # Build player_id -> photo_url + person_name mapping from dongqiudi data
     player_photo_map: dict[int, str] = {}
+    player_cn_map: dict[int, str] = {}
     dqd_players = (
         db.query(DongqiudiPlayerData)
         .filter(DongqiudiPlayerData.matched_player_id.isnot(None))
@@ -68,10 +69,16 @@ def get_team(code: str, db: Session = Depends(get_db)):
         if dpd.matched_player_id:
             photo_url = dpd.person_logo
             if dpd.local_photo_path:
-                local_path = STATIC_DIR / dpd.local_photo_path
+                # local_photo_path 可能是 "images/xxx.jpg" 或 "player_xxx.jpg"
+                filename = dpd.local_photo_path
+                if filename.startswith("images/"):
+                    filename = filename[len("images/"):]
+                local_path = STATIC_DIR / filename
                 if local_path.exists():
-                    photo_url = f"/static/images/{dpd.local_photo_path}"
+                    photo_url = f"/static/images/{filename}"
             player_photo_map[dpd.matched_player_id] = photo_url
+            if dpd.person_name:
+                player_cn_map[dpd.matched_player_id] = dpd.person_name
 
     # Resolve team flag URL
     flag_url = team.flag_url
@@ -101,6 +108,7 @@ def get_team(code: str, db: Session = Depends(get_db)):
         best_pos = p.position
         players_out.append({
             "name": p.name,
+            "name_cn": player_cn_map.get(p.id),
             "jersey": p.jersey,
             "position": p.position,
             "club_name": p.club_name,
@@ -115,6 +123,7 @@ def get_team(code: str, db: Session = Depends(get_db)):
     return {
         "code": team.code,
         "name": team.name,
+        "name_cn": team.name_cn,
         "iso": team.iso,
         "confederation": team.confederation,
         "group_name": team.group_name,

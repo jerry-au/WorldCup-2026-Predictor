@@ -7,9 +7,19 @@ import '../../providers/teams_provider.dart';
 import '../../services/share_service.dart';
 import '../../widgets/probability_gauge.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/odds_trend_chart.dart';
 
 class PredictionPage extends ConsumerStatefulWidget {
-  const PredictionPage({super.key});
+  final String? initialTeamA;
+  final String? initialTeamB;
+  final String? initialMatchType;
+
+  const PredictionPage({
+    super.key,
+    this.initialTeamA,
+    this.initialTeamB,
+    this.initialMatchType,
+  });
 
   @override
   ConsumerState<PredictionPage> createState() => _PredictionPageState();
@@ -19,6 +29,16 @@ class _PredictionPageState extends ConsumerState<PredictionPage> {
   String? _teamA;
   String? _teamB;
   String _matchType = 'group';
+
+  @override
+  void initState() {
+    super.initState();
+    _teamA = widget.initialTeamA;
+    _teamB = widget.initialTeamB;
+    if (widget.initialMatchType != null) {
+      _matchType = widget.initialMatchType!;
+    }
+  }
 
   void _predict() {
     if (_teamA == null || _teamB == null) {
@@ -50,7 +70,16 @@ class _PredictionPageState extends ConsumerState<PredictionPage> {
           )))
         : null;
 
-    return ListView(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('对战预测'),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: ListView(
       padding: const EdgeInsets.all(16),
       children: [
         // ─── Team Selectors ─────────────────────────────────
@@ -100,6 +129,7 @@ class _PredictionPageState extends ConsumerState<PredictionPage> {
             data: (pred) => _PredictionResult(prediction: pred),
           ),
       ],
+      ),
     );
   }
 
@@ -125,7 +155,7 @@ class _PredictionPageState extends ConsumerState<PredictionPage> {
           items: filtered.map((team) {
             return DropdownMenuItem(
               value: team.code,
-              child: Text('${team.name} (${team.code})', style: const TextStyle(fontSize: 14)),
+              child: Text('${team.displayName} (${team.code})', style: const TextStyle(fontSize: 14)),
             );
           }).toList(),
           onChanged: onChanged,
@@ -149,6 +179,10 @@ class _PredictionResult extends StatelessWidget {
 
     return Column(
       children: [
+        // ─── Team Data Cards ─────────────────────────────
+        _TeamDataCard(teamA: prediction.teamA, teamB: prediction.teamB),
+        const SizedBox(height: 12),
+
         // ─── Probability Gauges ────────────────────────────
         Card(
           child: Padding(
@@ -160,7 +194,7 @@ class _PredictionResult extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        '${prediction.teamA.name} vs ${prediction.teamB.name}',
+                        '${prediction.teamA.displayName} vs ${prediction.teamB.displayName}',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -202,7 +236,7 @@ class _PredictionResult extends StatelessWidget {
                       ),
                     ProbabilityGauge(
                       probability: probs.lose,
-                      label: '${prediction.teamB.name}\n胜',
+                      label: '${prediction.teamB.displayName}\n胜',
                       color: Colors.red,
                     ),
                   ],
@@ -237,26 +271,54 @@ class _PredictionResult extends StatelessWidget {
           ),
 
         // ─── Odds Comparison ────────────────────────────────
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('赔率对比 (${prediction.betting.oddsComparison.providerCount}家博彩公司)',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const Divider(),
-                _oddsRow('主胜', prediction.betting.oddsComparison.marketAvg['win']),
-                if (!isKnockout) _oddsRow('平局', prediction.betting.oddsComparison.marketAvg['draw']),
-                _oddsRow('客胜', prediction.betting.oddsComparison.marketAvg['lose']),
-                if (prediction.betting.oddsComparison.bestOdds['win'] != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    '最佳赔率: ${prediction.betting.oddsComparison.bestOdds['provider']} 提供',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
+        GestureDetector(
+          onTap: () {
+            final teamACode = prediction.teamA.code;
+            final teamBCode = prediction.teamB.code;
+            if (teamACode != null && teamBCode != null) {
+              OddsTrendChart.show(
+                context,
+                matchId: '${teamACode}_$teamBCode',
+                homeCode: teamACode,
+                awayCode: teamBCode,
+                homeTeamName: prediction.teamA.name,
+                awayTeamName: prediction.teamB.name,
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('球队代码不完整，无法加载赔率趋势')),
+              );
+            }
+          },
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text('赔率对比 (${prediction.betting.oddsComparison.providerCount}家博彩公司)',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      Icon(Icons.touch_app, size: 18, color: Colors.blue.shade400),
+                      const SizedBox(width: 4),
+                      Text('点击查看趋势', style: TextStyle(fontSize: 12, color: Colors.blue.shade400)),
+                    ],
                   ),
+                  const Divider(),
+                  _oddsRow('主胜', prediction.betting.oddsComparison.marketAvg['win']),
+                  if (!isKnockout) _oddsRow('平局', prediction.betting.oddsComparison.marketAvg['draw']),
+                  _oddsRow('客胜', prediction.betting.oddsComparison.marketAvg['lose']),
+                  if (prediction.betting.oddsComparison.bestOdds['win'] != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '最佳赔率: ${prediction.betting.oddsComparison.bestOdds['provider']} 提供',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -361,7 +423,6 @@ class _BreakdownView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // breakdown 实际格式: {"elo_expected_a": 0.6267, "expected_goals_a": 2.82, "expected_goals_b": 2.39}
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: breakdown.entries.map((entry) {
@@ -386,7 +447,89 @@ class _BreakdownView extends StatelessWidget {
       case 'elo_expected_a': return '主队 Elo 期望胜率';
       case 'expected_goals_a': return '主队期望进球';
       case 'expected_goals_b': return '客队期望进球';
+      case 'strength_a': return '主队实力分 (DQ)';
+      case 'strength_b': return '客队实力分 (DQ)';
+      case 'market_value_a_m': return '主队总身价 (M EUR)';
+      case 'market_value_b_m': return '客队总身价 (M EUR)';
       default: return key;
     }
+  }
+}
+
+/// 球队数据对比卡片：展示 Elo、实力分、身价
+class _TeamDataCard extends StatelessWidget {
+  final TeamRef teamA;
+  final TeamRef teamB;
+
+  const _TeamDataCard({required this.teamA, required this.teamB});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('球队数据', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            const Divider(),
+            Row(
+              children: [
+                Expanded(child: _teamColumn(teamA, isLeft: true)),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.compare_arrows_rounded, size: 20, color: Colors.grey)),
+                Expanded(child: _teamColumn(teamB, isLeft: false)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _teamColumn(TeamRef team, {required bool isLeft}) {
+    return Column(
+      crossAxisAlignment: isLeft ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        // 队名 + 代码
+        Text(team.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        if (team.code != null)
+          Text('(${team.code})', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+
+        const SizedBox(height: 10),
+
+        // Elo
+        if (team.elo != null)
+          _dataRow('Elo', team.elo!.toStringAsFixed(0), isLeft),
+
+        // 实力分
+        if (team.dongqiudiStrength != null)
+          _dataRow('实力分', team.dongqiudiStrength!.toStringAsFixed(1), isLeft),
+
+        // 身价
+        if (team.marketValueEur != null && team.marketValueEur! > 0)
+          _dataRow('身价', team.marketValueDisplay, isLeft),
+      ],
+    );
+  }
+
+  Widget _dataRow(String label, String value, bool alignRight) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!alignRight) ...[
+            Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+            const SizedBox(width: 6),
+            Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+          ] else ...[
+            Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          ],
+        ],
+      ),
+    );
   }
 }

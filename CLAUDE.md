@@ -161,17 +161,28 @@ P3 优化    ✅ 已完成
 
 ---
 
+## 端口配置
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| 后端 FastAPI | **9000** | API 服务地址 `http://localhost:9000` |
+| 前端 Flutter Web | **9001** | 开发服务器地址 `http://localhost:9001` |
+
+> 重启服务时必须使用上述固定端口，避免端口不一致导致前后端连接失败。
+
+---
+
 ## 常用命令
 
 ```powershell
 # 后端测试
 cd backend; python -m pytest tests/ -v
 
-# 后端开发服务器
-cd backend; python -m app.main
+# 后端开发服务器（固定端口 9000）
+cd backend; python -m uvicorn app.main:app --host 0.0.0.0 --port 9000 --reload
 
-# Flutter 开发服务器
-cd flutter_app; flutter run -d chrome --web-port=8080
+# Flutter 开发服务器（固定端口 9001）
+cd flutter_app; flutter run -d chrome --web-port=9001
 
 # 查看 git 状态
 git status
@@ -260,6 +271,46 @@ git log --oneline -20
 4. **错误处理**: 完善的异常处理和日志记录
 5. **代码复用**: 抽取公共逻辑到工具函数
 6. **YAGNI**: 避免过度工程，专注于当前需求
+
+---
+
+## UI/UX 设计规范
+
+> **强制规则**：所有涉及 UI 结构、视觉设计、交互模式或用户体验的任务，**必须优先调用 `ui-ux-pro-max` 技能**，使用其设计系统搜索和 UX 准则数据库进行决策。
+
+### 触发场景（必须调用）
+
+- 新建/重构页面（Landing Page、Dashboard、列表页、详情页等）
+- 创建或修改 UI 组件（按钮、卡片、表单、图表、导航等）
+- 选择配色方案、字体搭配、间距标准、布局系统
+- 审查 UI 代码的可访问性、视觉一致性或用户体验
+- 实现导航结构、动画效果、响应式布局
+- 产品级设计决策（风格选择、信息层级、品牌表达）
+- 改善界面的感知质量、清晰度或易用性
+
+### 使用方式
+
+```bash
+# 生成完整设计系统（首选）
+python .trae/skills/ui-ux-pro-max/scripts/search.py "<产品类型> <关键词>" --design-system -p "WorldCup"
+
+# 按领域搜索细节
+python .trae/skills/ui-ux-pro-max/scripts/search.py "<关键词>" --domain <domain>
+
+# 搜索 Flutter 栈最佳实践
+python .trae/skills/ui-ux-pro-max/scripts/search.py "<关键词>" --stack flutter
+```
+
+### 可用领域
+
+| 域 | 用途 |
+|---|------|
+| `style` | UI 风格（glassmorphism、minimalism 等 67+ 种） |
+| `color` | 配色方案（161 套，按产品类型分类） |
+| `typography` | 字体搭配（57 组 Google Fonts） |
+| `ux` | UX 准则（99 条：无障碍、动画、导航等） |
+| `chart` | 图表类型（25 种） |
+| `product` | 产品类型推荐（161 种） |
 
 ---
 

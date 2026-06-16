@@ -14,10 +14,11 @@ class PlayerSeasonStatsOut(BaseModel):
 
 class PlayerOut(BaseModel):
     name: str
-    jersey: int | None
-    position: str | None
-    club_name: str | None
-    age_at_tournament: int | None
+    name_cn: str | None = None
+    jersey: int | None = None
+    position: str | None = None
+    club_name: str | None = None
+    age_at_tournament: int | None = None
     season_stats: list[PlayerSeasonStatsOut] = []
     best_position: str | None = None
     photo_url: str | None = None
@@ -42,6 +43,7 @@ class TeamListOut(BaseModel):
 class TeamDetailOut(BaseModel):
     code: str
     name: str
+    name_cn: str | None = None
     iso: str
     confederation: str
     group_name: str

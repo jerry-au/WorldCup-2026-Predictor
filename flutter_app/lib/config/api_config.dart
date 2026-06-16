@@ -40,4 +40,7 @@ class ApiConfig {
   static const String fetchOddsEndpoint = '/data/refresh/trigger';
   static const String fetchSeasonSummariesEndpoint = '/data/fetch/dongqiudi/player-season-summaries';
   static const String fetchPlayerAbilitiesEndpoint = '/data/fetch/dongqiudi/player-abilities';
+  static const String todayMatchesEndpoint = '/matches/today';
+  static const String allMatchesEndpoint = '/matches/all';
+  static String oddsHistoryEndpoint(String matchId) => '/matches/$matchId/odds-history';
 }

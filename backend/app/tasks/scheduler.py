@@ -150,7 +150,7 @@ async def precompute_recommendations():
                 if scanned >= 12:
                     break
 
-                pred = engine.predict(team_a, team_b, "group")
+                pred = engine.predict(team_a, team_b, db=db, match_type="group")
                 odds_data = await odds_client.fetch_h2h_odds(team_a, team_b)
 
                 betting = recommendation_engine.analyze(
@@ -187,9 +187,9 @@ async def precompute_recommendations():
 
 
 async def refresh_odds_data():
-    """Single batch fetch: 1 API call → all matches → save to DB."""
+    """Fetch BetExplorer odds and save matching teams to DB."""
     db = SessionLocal()
-    log = DataRefreshLog.log_start("the-odds-api", "odds_refresh")
+    log = DataRefreshLog.log_start("betexplorer", "odds_refresh")
     db.add(log)
     db.commit()
 
@@ -238,6 +238,29 @@ async def refresh_dongqiudi_rosters():
         result = scrape_all_national_rosters(db)
         log.mark_complete(
             records_updated=result.get("players_saved", 0),
+            details=json.dumps(result, ensure_ascii=False),
+        )
+        db.commit()
+    except Exception as e:
+        log.mark_failed(str(e))
+        db.commit()
+    finally:
+        db.close()
+
+
+async def refresh_elo_rankings():
+    """Fetch Elo ratings from eloratings.net and update team elo_rating + fifa_rank."""
+    from ..services.elo_rankings_fetcher import fetch_and_update_elo
+
+    db = SessionLocal()
+    log = DataRefreshLog.log_start("eloratings", "elo_rankings")
+    db.add(log)
+    db.commit()
+
+    try:
+        result = fetch_and_update_elo(db)
+        log.mark_complete(
+            records_updated=result.get("teams_updated", 0),
             details=json.dumps(result, ensure_ascii=False),
         )
         db.commit()
@@ -321,10 +344,11 @@ def init_data_source_status():
     db = SessionLocal()
     try:
         default_sources = [
-            {"source": "the-odds-api", "refresh_interval_hours": 8, "match_day_interval_hours": 4},
+            {"source": "betexplorer", "refresh_interval_hours": 8, "match_day_interval_hours": 4},
             {"source": "football-data-org", "refresh_interval_hours": 12, "match_day_interval_hours": 12},
             {"source": "dongqiudi", "refresh_interval_hours": 24, "match_day_interval_hours": 12},
             {"source": "zafronix", "refresh_interval_hours": 24, "match_day_interval_hours": 24},
+            {"source": "eloratings", "refresh_interval_hours": 24, "match_day_interval_hours": 12},
             {"source": "internal", "refresh_interval_hours": 8, "match_day_interval_hours": 4},
         ]
 
@@ -383,6 +407,14 @@ def start_scheduler():
         CronTrigger(hour=4),
         id="refresh_zafronix_results",
         name="Zafronix full sync: matches + standings + tournament (daily noon)",
+    )
+
+    # Elo rankings from eloratings.net (daily at 5am UTC = 1pm CST, after matches update)
+    scheduler.add_job(
+        refresh_elo_rankings,
+        CronTrigger(hour=5),
+        id="refresh_elo_rankings",
+        name="Elo rankings refresh from eloratings.net (daily 1pm CST)",
     )
 
     scheduler.start()

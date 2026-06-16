@@ -69,6 +69,7 @@ class PlayerSeasonStats {
 
 class Player {
   final String name;
+  final String? nameCn;
   final int? jersey;
   final String? position;
   final String? clubName;
@@ -79,6 +80,7 @@ class Player {
 
   Player({
     required this.name,
+    this.nameCn,
     this.jersey,
     this.position,
     this.clubName,
@@ -91,6 +93,7 @@ class Player {
   factory Player.fromJson(Map<String, dynamic> json) {
     return Player(
       name: json['name'] as String,
+      nameCn: json['name_cn'] as String?,
       jersey: json['jersey'] as int?,
       position: json['position'] as String?,
       clubName: json['club_name'] as String?,
@@ -103,6 +106,8 @@ class Player {
       photoUrl: json['photo_url'] as String?,
     );
   }
+
+  String get displayName => nameCn ?? name;
 }
 
 class TeamDetail {

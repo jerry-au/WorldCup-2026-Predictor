@@ -12,6 +12,7 @@ from ..tasks.scheduler import (
     is_matchday,
     get_refresh_mode,
     get_refresh_interval_hours,
+    refresh_elo_rankings,
 )
 
 router = APIRouter(prefix="/api/v1/data", tags=["data"])
@@ -51,6 +52,20 @@ def trigger_fetch_results():
 
     result = run_zafronix_batch()
     return {"status": "ok", "result": result}
+
+
+@router.post("/fetch/elo-rankings")
+def trigger_elo_rankings():
+    """Fetch Elo ratings from eloratings.net and update team elo_rating + fifa_rank."""
+    from ..database import SessionLocal
+    from ..services.elo_rankings_fetcher import fetch_and_update_elo
+
+    db = next(get_db())
+    try:
+        result = fetch_and_update_elo(db)
+        return {"status": "ok", **result}
+    finally:
+        db.close()
 
 
 # ── Zafronix read endpoints (from DB) ────────────────────────
@@ -181,6 +196,7 @@ def trigger_refresh(source: str = "all"):
         "player_data": refresh_player_data,
         "dongqiudi": refresh_dongqiudi_rosters,
         "zafronix": refresh_zafronix_results,
+        "elo": refresh_elo_rankings,
     }
 
     if source == "all":

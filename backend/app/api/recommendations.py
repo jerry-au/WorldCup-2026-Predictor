@@ -43,8 +43,8 @@ async def value_bets(
                 team_b = db.query(Team).filter(Team.code == c.team_b_code).first()
                 if team_a and team_b:
                     all_bets.append({
-                        "team_a": team_a.name,
-                        "team_b": team_b.name,
+                        "team_a": team_a.name_cn or team_a.name,
+                        "team_b": team_b.name_cn or team_b.name,
                         **rec,
                     })
 
@@ -74,7 +74,7 @@ async def _compute_value_bets_live(min_ev, page, page_size, db):
             if scanned >= 12:
                 break
 
-            pred = engine.predict(team_a, team_b, "group")
+            pred = engine.predict(team_a, team_b, db=db, match_type="group")
             odds_data = await odds_client.fetch_h2h_odds(team_a, team_b)
             betting = recommendation_engine.analyze(
                 system_probs=pred["probabilities"],
@@ -125,8 +125,8 @@ async def discrepancies(
             team_b = db.query(Team).filter(Team.code == c.team_b_code).first()
             if team_a and team_b:
                 alerts.append({
-                    "team_a": team_a.name,
-                    "team_b": team_b.name,
+                    "team_a": team_a.name_cn or team_a.name,
+                    "team_b": team_b.name_cn or team_b.name,
                     "group": team_a.group_name,
                     "discrepancy": disc,
                 })
@@ -139,12 +139,16 @@ async def _compute_discrepancies_live(min_delta, db):
     """Original live computation logic as fallback."""
     teams = db.query(Team).all()
     alerts = []
+    scanned = 0
 
     for i, team_a in enumerate(teams):
         for j, team_b in enumerate(teams):
             if j <= i or team_a.group_name != team_b.group_name:
                 continue
-            pred = engine.predict(team_a, team_b, "group")
+            if scanned >= 12:
+                break
+
+            pred = engine.predict(team_a, team_b, db=db, match_type="group")
             odds_data = await odds_client.fetch_h2h_odds(team_a, team_b)
             betting = recommendation_engine.analyze(
                 system_probs=pred["probabilities"],
@@ -160,5 +164,8 @@ async def _compute_discrepancies_live(min_delta, db):
                     "system_probs": pred["probabilities"],
                     "market_probs": betting.get("odds_comparison", {}).get("market_implied", {}),
                 })
+            scanned += 1
+        if scanned >= 12:
+            break
 
     return {"alerts": alerts, "total": len(alerts)}

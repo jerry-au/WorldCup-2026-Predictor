@@ -37,6 +37,19 @@ class MatchOdds(Base):
         return datetime.utcnow() > self.expires_at if self.expires_at else True
 
 
+class MatchOddsHistory(Base):
+    __tablename__ = "match_odds_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    team_a_code = Column(String(3), ForeignKey("teams.code"), nullable=False, index=True)
+    team_b_code = Column(String(3), ForeignKey("teams.code"), nullable=False, index=True)
+    avg_odds_win = Column(Float)
+    avg_odds_draw = Column(Float)
+    avg_odds_lose = Column(Float)
+    provider_count = Column(Integer)
+    recorded_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 class MatchOddsSummary(Base):
     __tablename__ = "match_odds_summary"
 

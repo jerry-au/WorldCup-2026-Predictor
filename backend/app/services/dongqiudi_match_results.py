@@ -310,13 +310,13 @@ def scrape_all_matches(db: Session) -> dict:
                         "team_away_code": away_code,
                         "team_home_name_cn": entry["team_home_name_cn"],
                         "team_away_name_cn": entry["team_away_name_cn"],
-                        "score_home": None,
-                        "score_away": None,
+                        "score_home": entry.get("score_home"),
+                        "score_away": entry.get("score_away"),
                         "score_home_et": None,
                         "score_away_et": None,
                         "home_penalties": None,
                         "away_penalties": None,
-                        "status": "upcoming",
+                        "status": entry.get("status", "upcoming"),
                         "commence_time": entry["commence_time"],
                         "stadium": None,
                         "raw_data": None,
@@ -443,11 +443,37 @@ def parse_schedule_html(html: str) -> list[dict]:
         if skip:
             continue
 
+        # Extract status and score from the match row
+        # Pattern: look for status text (已结束/未开始) and score (X - Y)
+        status = "upcoming"
+        score_home = None
+        score_away = None
+
+        # Check for completed status
+        if re.search(r'已结束|已完成|finished|completed', inner, re.IGNORECASE):
+            status = "completed"
+        elif re.search(r'进行中|上半场|下半场|中场休息|live', inner, re.IGNORECASE):
+            status = "live"
+
+        # Extract score pattern: "HOME X - Y AWAY" or similar
+        score_m = re.search(
+            r'(?:dp-schedule-row__score[^>]*>|>\s*)'
+            r'(\d+)\s*[-:]\s*(\d+)'
+            r'(?:\s*<|\s*$)',
+            inner,
+        )
+        if score_m:
+            try:
+                score_home = int(score_m.group(1))
+                score_away = int(score_m.group(2))
+                if status == "upcoming" and score_home is not None:
+                    status = "completed"
+            except (ValueError, TypeError):
+                pass
+
         # Derive group name for group stage matches
         group_name = None
         if stage == "group_stage":
-            # Try to extract from round name like "小组赛 第1轮" -> "A", "B", etc.
-            # We'll fill this from team data later
             pass
 
         results.append({
@@ -457,6 +483,9 @@ def parse_schedule_html(html: str) -> list[dict]:
             "commence_time": dt,
             "stage": stage,
             "group_name": group_name,
+            "status": status,
+            "score_home": score_home,
+            "score_away": score_away,
         })
 
     return results

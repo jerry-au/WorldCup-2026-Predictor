@@ -34,14 +34,39 @@ class MatchPrediction {
 class TeamRef {
   final String name;
   final String? flag;
+  final String? code;
+  final double? elo;
+  final double? dongqiudiStrength;
+  final double? marketValueEur;
 
-  TeamRef({required this.name, this.flag});
+  TeamRef({
+    required this.name,
+    this.flag,
+    this.code,
+    this.elo,
+    this.dongqiudiStrength,
+    this.marketValueEur,
+  });
 
   factory TeamRef.fromJson(Map<String, dynamic> json) {
     return TeamRef(
       name: json['name'] as String,
       flag: json['flag'] as String?,
+      code: json['code'] as String?,
+      elo: (json['elo'] as num?)?.toDouble(),
+      dongqiudiStrength: (json['dongqiudi_strength'] as num?)?.toDouble(),
+      marketValueEur: (json['market_value_eur'] as num?)?.toDouble(),
     );
+  }
+
+  String get displayName => name;
+
+  /// 格式化身价显示 (亿 EUR)
+  String get marketValueDisplay {
+    if (marketValueEur == null || marketValueEur! <= 0) return '-';
+    final yi = marketValueEur! / 100; // 百万 -> 亿
+    if (yi >= 1) return '${yi.toStringAsFixed(1)}亿';
+    return '${marketValueEur!.toStringAsFixed(0)}M';
   }
 }
 

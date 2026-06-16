@@ -22,6 +22,11 @@ class TeamDetailPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(teamName),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: detailAsync.when(
         loading: () => const LoadingWidget(message: '加载球队详情...'),
@@ -146,7 +151,7 @@ class _TeamDetailContent extends StatelessWidget {
                       childrenPadding: const EdgeInsets.only(left: 56, bottom: 8),
                       dense: true,
                       leading: _playerAvatar(player, radius: 18),
-                      title: Text(player.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                      title: Text(player.displayName, style: const TextStyle(fontWeight: FontWeight.w500)),
                       subtitle: Text(
                         [
                           if (player.position != null) player.position!,
@@ -177,19 +182,34 @@ class _TeamDetailContent extends StatelessWidget {
     );
   }
 
-  /// 将后端返回的路径转为完整 URL（本地 /static/images/xxx 或外网 URL）
+  /// 将图片路径转为完整 URL：本地路径走 static，外网 URL 走后端代理
   String _imagePathToUrl(String path) {
-    if (path.startsWith('http')) return path;
+    if (path.startsWith('http')) {
+      // 外部域名图片通过后端代理解决 CORS
+      return 'http://127.0.0.1:9000/api/v1/proxy-image?${Uri.encodeComponent('url')}=${Uri.encodeComponent(path)}';
+    }
     return 'http://127.0.0.1:9000$path';
   }
 
   Widget _playerAvatar(Player player, {double radius = 20}) {
     if (player.photoUrl != null && player.photoUrl!.isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: NetworkImage(_imagePathToUrl(player.photoUrl!)),
+      final url = _imagePathToUrl(player.photoUrl!);
+      return ClipOval(
+        child: Image.network(
+          url,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (c, e, s) => _fallbackAvatar(player, radius),
+          loadingBuilder: (c, child, progress) =>
+              progress == null ? child : _fallbackAvatar(player, radius),
+        ),
       );
     }
+    return _fallbackAvatar(player, radius);
+  }
+
+  Widget _fallbackAvatar(Player player, double radius) {
     return CircleAvatar(
       radius: radius,
       backgroundColor: Colors.grey.shade200,
@@ -234,7 +254,7 @@ class _TeamDetailContent extends StatelessWidget {
         SizedBox(
           width: 60,
           child: Text(
-            player.name,
+            player.displayName,
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

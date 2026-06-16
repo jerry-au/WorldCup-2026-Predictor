@@ -21,14 +21,14 @@ class ValueBet {
 
   factory ValueBet.fromJson(Map<String, dynamic> json) {
     return ValueBet(
-      teamA: json['team_a'] as String,
-      teamB: json['team_b'] as String,
-      outcome: json['outcome'] as String,
+      teamA: json['team_a'] as String? ?? '',
+      teamB: json['team_b'] as String? ?? '',
+      outcome: json['outcome'] as String? ?? '',
       odds: (json['odds'] as num?)?.toDouble() ?? 0,
-      ev: (json['ev'] as num).toDouble(),
-      rating: json['rating'] as String,
-      systemProb: (json['system_prob'] as num).toDouble(),
-      marketProb: (json['market_prob'] as num).toDouble(),
+      ev: (json['ev'] as num?)?.toDouble() ?? 0,
+      rating: json['rating'] as String? ?? '',
+      systemProb: (json['system_prob'] as num?)?.toDouble() ?? 0,
+      marketProb: (json['market_prob'] as num?)?.toDouble() ?? 0,
     );
   }
 
@@ -69,12 +69,12 @@ class DiscrepancyAlert {
 
   factory DiscrepancyAlert.fromJson(Map<String, dynamic> json) {
     return DiscrepancyAlert(
-      teamA: json['team_a'] as String,
-      teamB: json['team_b'] as String,
-      group: json['group'] as String,
-      discrepancy: json['discrepancy'] as Map<String, dynamic>,
-      systemProbs: (json['system_probs'] as Map<String, dynamic>)
-          .map((k, v) => MapEntry(k, (v as num).toDouble())),
+      teamA: json['team_a'] as String? ?? '',
+      teamB: json['team_b'] as String? ?? '',
+      group: json['group'] as String? ?? '',
+      discrepancy: (json['discrepancy'] as Map<String, dynamic>?) ?? {},
+      systemProbs: (json['system_probs'] as Map<String, dynamic>?)
+          ?.map((k, v) => MapEntry(k, (v as num).toDouble())) ?? {'win': 0, 'draw': 0, 'lose': 0},
       marketProbs: (json['market_probs'] as Map<String, dynamic>?)
           ?.map((k, v) => MapEntry(k, (v as num).toDouble())),
     );

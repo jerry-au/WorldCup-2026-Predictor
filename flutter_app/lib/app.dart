@@ -23,6 +23,16 @@ class WorldCupApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
         useMaterial3: true,
+        // 配置中文字体支持
+        fontFamilyFallback: const [
+          'Microsoft YaHei',  // Windows 微软雅黑
+          'PingFang SC',      // macOS/iOS 苹方
+          'Noto Sans SC',     // Android/Linux 思源黑体
+          'Noto Sans CJK SC', // Android 备选
+          'Heiti SC',         // macOS 黑体
+          'SimSun',           // Windows 宋体备选
+          'sans-serif',       // 系统默认无衬线字体
+        ],
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           elevation: 0,

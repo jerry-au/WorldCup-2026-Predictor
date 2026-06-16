@@ -1,6 +1,104 @@
 from datetime import date, datetime
 from types import SimpleNamespace
-from app.services.match_aggregator import build_today_matches_response
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.database import Base
+from app.models.dongqiudi_match import DongqiudiMatch
+from app.services.match_aggregator import build_today_matches_response, _query_matches_for_date
+
+
+def make_session():
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=engine)
+    return sessionmaker(autocommit=False, autoflush=False, bind=engine)()
+
+
+def test_query_matches_for_date_uses_48_hour_window_and_excludes_completed():
+    db = make_session()
+    db.add_all([
+        DongqiudiMatch(
+            match_id="before-window",
+            team_home_code="BRA",
+            team_away_code="FRA",
+            status="upcoming",
+            commence_time=datetime(2026, 6, 10, 23, 59),
+        ),
+        DongqiudiMatch(
+            match_id="at-start",
+            team_home_code="ARG",
+            team_away_code="MEX",
+            status="upcoming",
+            commence_time=datetime(2026, 6, 11, 0, 0),
+        ),
+        DongqiudiMatch(
+            match_id="live-in-window",
+            team_home_code="ESP",
+            team_away_code="GER",
+            status="live",
+            commence_time=datetime(2026, 6, 12, 20, 0),
+        ),
+        DongqiudiMatch(
+            match_id="completed-in-window",
+            team_home_code="ENG",
+            team_away_code="USA",
+            status="completed",
+            commence_time=datetime(2026, 6, 11, 12, 0),
+        ),
+        DongqiudiMatch(
+            match_id="at-end",
+            team_home_code="POR",
+            team_away_code="URU",
+            status="upcoming",
+            commence_time=datetime(2026, 6, 13, 0, 0),
+        ),
+    ])
+    db.commit()
+
+    matches = _query_matches_for_date(
+        db,
+        date(2026, 6, 11),
+        now=datetime(2026, 6, 10, 22, 0),
+    )
+
+    assert [match.match_id for match in matches] == ["at-start", "live-in-window"]
+
+
+def test_query_matches_for_date_excludes_matches_past_estimated_finish_time():
+    db = make_session()
+    db.add_all([
+        DongqiudiMatch(
+            match_id="already-ended-by-time",
+            team_home_code="ESP",
+            team_away_code="CPV",
+            status="upcoming",
+            commence_time=datetime(2026, 6, 16, 0, 0),
+        ),
+        DongqiudiMatch(
+            match_id="currently-playing-by-time",
+            team_home_code="BEL",
+            team_away_code="EGY",
+            status="upcoming",
+            commence_time=datetime(2026, 6, 16, 7, 30),
+        ),
+        DongqiudiMatch(
+            match_id="future-match",
+            team_home_code="KSA",
+            team_away_code="URU",
+            status="upcoming",
+            commence_time=datetime(2026, 6, 16, 12, 0),
+        ),
+    ])
+    db.commit()
+
+    matches = _query_matches_for_date(
+        db,
+        date(2026, 6, 16),
+        now=datetime(2026, 6, 16, 9, 0),
+    )
+
+    assert [match.match_id for match in matches] == ["currently-playing-by-time", "future-match"]
 
 
 def test_build_today_matches_response_empty(monkeypatch):
@@ -23,8 +121,20 @@ def test_build_today_matches_response_with_prediction_and_odds(monkeypatch):
         commence_time=datetime(2026, 6, 11, 20, 0),
         fetched_at=datetime(2026, 6, 11, 10, 0),
     )
-    team_a = SimpleNamespace(code="BRA", name="Brazil")
-    team_b = SimpleNamespace(code="FRA", name="France")
+    team_a = SimpleNamespace(
+        code="BRA",
+        name="Brazil",
+        name_cn="巴西",
+        local_flag_path=None,
+        flag_url=None,
+    )
+    team_b = SimpleNamespace(
+        code="FRA",
+        name="France",
+        name_cn="法国",
+        local_flag_path=None,
+        flag_url=None,
+    )
     odds = SimpleNamespace(
         avg_odds_win=2.1,
         avg_odds_draw=3.4,

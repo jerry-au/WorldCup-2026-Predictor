@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..models.team import Team
 from ..config import settings
-from .elo import composite_rating, expected_score
+from .elo import composite_rating, expected_score, get_team_dongqiudi_strength, get_team_market_value
 from .poisson import expected_goals, match_probabilities
 
 
@@ -17,25 +17,40 @@ class PredictionEngine:
         self.delta = delta
 
     def predict(
-        self, team_a: Team, team_b: Team, match_type: str = "group"
+        self,
+        team_a: Team,
+        team_b: Team,
+        db: Session | None = None,
+        match_type: str = "group",
     ) -> dict:
         """Predict outcome probabilities for a match between two teams.
 
         Args:
             team_a: Home/team A
             team_b: Away/team B
+            db: database session for fetching Dongqiudi team strength (optional)
             match_type: 'group' or 'knockout'
 
         Returns:
             dict with probabilities, breakdown, and confidence
         """
+        # Get Dongqiudi team strength scores if db session available
+        strength_a = get_team_dongqiudi_strength(db, team_a) if db else None
+        strength_b = get_team_dongqiudi_strength(db, team_b) if db else None
+
+        # Get market value from player data
+        mv_a = get_team_market_value(db, team_a) if db else 0.0
+        mv_b = get_team_market_value(db, team_b) if db else 0.0
+
         composite_a = composite_rating(
             elo=team_a.elo_rating,
-            fifa_rank=team_a.fifa_rank,
+            dongqiudi_strength=strength_a,
+            market_value_eur=mv_a,
         )
         composite_b = composite_rating(
             elo=team_b.elo_rating,
-            fifa_rank=team_b.fifa_rank,
+            dongqiudi_strength=strength_b,
+            market_value_eur=mv_b,
         )
 
         # Elo expected score as baseline
@@ -56,24 +71,30 @@ class PredictionEngine:
 
         result = {
             "team_a": {
-                "name": team_a.name,
+                "name": team_a.name_cn or team_a.name,
                 "code": team_a.code,
                 "flag": team_a.flag_url,
                 "elo": round(team_a.elo_rating),
-                "fifa_rank": team_a.fifa_rank,
+                "dongqiudi_strength": strength_a,
+                "market_value_eur": round(mv_a / 1e6, 1) if mv_a else None,  # in millions
             },
             "team_b": {
-                "name": team_b.name,
+                "name": team_b.name_cn or team_b.name,
                 "code": team_b.code,
                 "flag": team_b.flag_url,
                 "elo": round(team_b.elo_rating),
-                "fifa_rank": team_b.fifa_rank,
+                "dongqiudi_strength": strength_b,
+                "market_value_eur": round(mv_b / 1e6, 1) if mv_b else None,
             },
             "probabilities": probs,
             "breakdown": {
                 "elo_expected_a": round(elo_expected, 4),
                 "expected_goals_a": round(lambda_a, 2),
                 "expected_goals_b": round(lambda_b, 2),
+                "strength_a": strength_a,
+                "strength_b": strength_b,
+                "market_value_a_m": round(mv_a / 1e6, 1) if mv_a else None,
+                "market_value_b_m": round(mv_b / 1e6, 1) if mv_b else None,
             },
             "system_confidence": confidence,
             "match_type": match_type,
