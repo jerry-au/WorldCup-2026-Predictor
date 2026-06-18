@@ -73,15 +73,15 @@ class RecommendationEngine:
         books = odds_data["bookmakers"]
 
         market_avg = {}
-        for outcome in outcome_names:
+        for (outcome, search_key) in [
+            ("win", odds_data["home_team"].lower()),
+            ("lose", odds_data["away_team"].lower()),
+            ("draw", "draw"),
+        ]:
             prices = []
             for bm in books:
                 for o_name, price in bm["outcomes"].items():
-                    if outcome == "win" and o_name == odds_data["home_team"]:
-                        prices.append(price)
-                    elif outcome == "lose" and o_name == odds_data["away_team"]:
-                        prices.append(price)
-                    elif outcome == "draw" and "draw" in o_name.lower():
+                    if search_key in o_name.lower():
                         prices.append(price)
             market_avg[outcome] = round(sum(prices) / len(prices), 2) if prices else 0
 

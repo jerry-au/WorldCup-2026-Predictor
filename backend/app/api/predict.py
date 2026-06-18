@@ -14,7 +14,7 @@ from ..schemas.predict import (
     TaskProgressResponse,
 )
 from ..core.prediction import PredictionEngine
-from ..core.simulation import MonteCarloEngine, TeamInGroup
+from ..core.simulation import MonteCarloEngine, TeamInGroup, CompletedMatch
 from ..core.elo import composite_rating, get_team_dongqiudi_strength, get_team_market_value
 from ..services.odds import odds_client
 from ..services.recommendation import recommendation_engine
@@ -76,6 +76,69 @@ def start_tournament_simulation(
     return TournamentResponse(task_id=run_id, status="running")
 
 
+def _load_completed_matches(db: Session) -> list[CompletedMatch]:
+    """Load completed group-stage matches from DB (real results).
+
+    Priority: Dongqiudi -> Zafronix. Returns empty list if no data.
+    """
+    from ..models.dongqiudi_match import DongqiudiMatch
+    from ..models.zafronix_data import ZafronixMatch
+
+    matches: list[CompletedMatch] = []
+
+    # Try Dongqiudi first
+    try:
+        dqd_matches = (
+            db.query(DongqiudiMatch)
+            .filter(
+                DongqiudiMatch.stage == "group_stage",
+                DongqiudiMatch.status == "completed",
+                DongqiudiMatch.score_home.isnot(None),
+                DongqiudiMatch.score_away.isnot(None),
+            )
+            .all()
+        )
+        if dqd_matches:
+            for m in dqd_matches:
+                matches.append(CompletedMatch(
+                    team_a_code=m.team_home_code,
+                    team_b_code=m.team_away_code,
+                    score_a=m.score_home,
+                    score_b=m.score_away,
+                    group_name=m.group_name or "",
+                ))
+            return matches
+    except Exception:
+        pass
+
+    # Fall back to Zafronix
+    try:
+        zaf_matches = (
+            db.query(ZafronixMatch)
+            .filter(
+                ZafronixMatch.tournament_year == 2026,
+                ZafronixMatch.stage == "group_stage",
+                ZafronixMatch.status == "completed",
+                ZafronixMatch.score_home.isnot(None),
+                ZafronixMatch.score_away.isnot(None),
+            )
+            .all()
+        )
+        if zaf_matches:
+            for m in zaf_matches:
+                matches.append(CompletedMatch(
+                    team_a_code=m.team_home_code,
+                    team_b_code=m.team_away_code,
+                    score_a=m.score_home,
+                    score_b=m.score_away,
+                    group_name=m.group_name or "",
+                ))
+    except Exception:
+        pass
+
+    return matches
+
+
 def _run_simulation(task_id: str):
     """Run simulation in background thread."""
     db = next(get_db())
@@ -100,9 +163,12 @@ def _run_simulation(task_id: str):
 
         _task_registry[task_id]["progress"] = 0.1
 
+        # Load completed group-stage matches from DB (real results)
+        completed_matches = _load_completed_matches(db)
+
         # Run simulation
         engine = MonteCarloEngine()
-        results = engine.simulate(groups, team_names)
+        results = engine.simulate(groups, team_names, completed_matches)
 
         _task_registry[task_id]["progress"] = 0.8
 

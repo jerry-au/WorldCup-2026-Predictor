@@ -32,6 +32,7 @@ class ApiConfig {
   static const String dataRefreshEndpoint = '/data/refresh';
   static const String dataRefreshStatusEndpoint = '/data/refresh/status';
   static const String dataRefreshLogsEndpoint = '/data/refresh/logs';
+  static const String dataRefreshProgressEndpoint = '/data/refresh/progress';
   // ─── Admin Data Management ──────────────────────────
   static const String fetchStatusEndpoint = '/data/fetch/status';
   static const String fetchPlayersEndpoint = '/data/refresh/trigger';

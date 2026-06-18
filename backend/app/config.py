@@ -3,6 +3,8 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Database
+    # 生产环境使用 MySQL: mysql+pymysql://user:pass@127.0.0.1:3306/worldcup?charset=utf8mb4
+    # 开发环境可继续使用 SQLite: sqlite:///./worldcup.db
     database_url: str = "sqlite:///./worldcup.db"
 
     # JWT

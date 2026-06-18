@@ -20,6 +20,15 @@ class BracketMatch {
   });
 }
 
+/// Round display labels (Chinese).
+const Map<String, String> roundLabels = {
+  'round_32': '32强',
+  'round_16': '16强',
+  'quarter': '八强',
+  'semi': '四强',
+  'final': '决赛',
+};
+
 /// Renders a horizontal knockout bracket using CustomPainter.
 ///
 /// Layout: round_32 → round_16 → quarter → semi → final
@@ -34,9 +43,8 @@ class BracketWidget extends StatelessWidget {
     this.teamNames = const {},
   });
 
-  @override
-  Widget build(BuildContext context) {
-    // Compute canvas size from match count per round
+  /// Calculate the intrinsic content size of the bracket.
+  Size get contentSize {
     final roundSizes = _countPerRound();
     final maxMatches = roundSizes.values.reduce(math.max);
     final rounds = roundSizes.length;
@@ -45,10 +53,28 @@ class BracketWidget extends StatelessWidget {
     const nodeH = 36.0;
     const gapX = 100.0;
     const gapY = 4.0;
+    const roundHeaderH = 28.0; // round label height
 
-    // Round 32 → R16 → QF → SF → F  gets tighter spacing for inner rounds
+    final height = maxMatches * (nodeH + gapY * 2) + 40 + roundHeaderH;
+    final totalWidth = rounds * (nodeW + gapX) - gapX + 40;
+
+    return Size(totalWidth, height);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final roundSizes = _countPerRound();
+    final rounds = roundSizes.length;
+
+    const nodeW = 100.0;
+    const nodeH = 36.0;
+    const gapX = 100.0;
+    const gapY = 4.0;
+    const roundHeaderH = 28.0;
+
     final roundSpacing = <double>[gapX, gapX, gapX, gapX, gapX];
-    final height = maxMatches * (nodeH + gapY * 2) + 40;
+    final maxMatches = roundSizes.values.reduce(math.max);
+    final height = maxMatches * (nodeH + gapY * 2) + 40 + roundHeaderH;
     final totalWidth = rounds * (nodeW + gapX) - gapX + 40;
 
     return SizedBox(
@@ -64,6 +90,8 @@ class BracketWidget extends StatelessWidget {
           gapY: gapY,
           rounds: rounds,
           roundSizes: roundSizes,
+          roundHeaderHeight: roundHeaderH,
+          isDark: Theme.of(context).brightness == Brightness.dark,
         ),
       ),
     );
@@ -87,6 +115,8 @@ class _BracketPainter extends CustomPainter {
   final double gapY;
   final int rounds;
   final Map<String, int> roundSizes;
+  final double roundHeaderHeight;
+  final bool isDark;
 
   final Map<String, Offset> _nodePositions = {};
 
@@ -99,6 +129,8 @@ class _BracketPainter extends CustomPainter {
     required this.gapY,
     required this.rounds,
     required this.roundSizes,
+    required this.roundHeaderHeight,
+    required this.isDark,
   });
 
   static const _roundOrder = [
@@ -109,7 +141,6 @@ class _BracketPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _nodePositions.clear();
 
-    // Group matches by round
     final byRound = <String, List<BracketMatch>>{};
     for (final m in matches) {
       byRound.putIfAbsent(m.roundName, () => []).add(m);
@@ -119,27 +150,27 @@ class _BracketPainter extends CustomPainter {
     if (roundKeys.isEmpty) return;
 
     const xStart = 20.0;
+    final contentTop = roundHeaderHeight + 10; // space below round labels
+
+    // Draw round header labels
+    _drawRoundHeaders(canvas, roundKeys, xStart, size.width);
 
     // Draw matches per round
     for (int ri = 0; ri < roundKeys.length; ri++) {
       final roundName = roundKeys[ri];
       final roundMatches = byRound[roundName]!;
-      // Sort by position to ensure correct order
       roundMatches.sort((a, b) => a.position.compareTo(b.position));
       final count = roundMatches.length;
       final roundX = xStart + ri * (nodeWidth + roundSpacing[ri]);
 
-      // Compute vertical centers considering connector position
       for (int mi = 0; mi < count; mi++) {
         final match = roundMatches[mi];
-        final cy = _matchCenterY(ri, count, mi, roundKeys, size.height);
+        final cy = contentTop + _matchCenterY(ri, count, mi, size.height - contentTop);
 
         final topY = cy - nodeHeight / 2;
 
-        // Record node center position for connector drawing
         _nodePositions['${match.roundName}_${match.position}'] = Offset(roundX + nodeWidth / 2, cy);
 
-        // Draw team A (top half)
         _drawNode(
           canvas,
           roundX,
@@ -153,7 +184,6 @@ class _BracketPainter extends CustomPainter {
           topHalf: true,
         );
 
-        // Draw team B (bottom half)
         _drawNode(
           canvas,
           roundX,
@@ -166,11 +196,10 @@ class _BracketPainter extends CustomPainter {
           Colors.red.shade700,
           topHalf: false,
         );
-
       }
     }
 
-    // Draw connectors between rounds
+    // Draw connectors
     for (int ri = 0; ri < roundKeys.length - 1; ri++) {
       final currentRound = roundKeys[ri];
       final nextRound = roundKeys[ri + 1];
@@ -201,6 +230,41 @@ class _BracketPainter extends CustomPainter {
     }
   }
 
+  void _drawRoundHeaders(Canvas canvas, List<String> roundKeys, double xStart, double totalWidth) {
+    final labelColor = isDark ? Colors.grey.shade300 : Colors.grey.shade700;
+    final lineColor = isDark ? Colors.grey.shade700 : Colors.grey.shade200;
+
+    for (int ri = 0; ri < roundKeys.length; ri++) {
+      final roundX = xStart + ri * (nodeWidth + roundSpacing[ri]);
+      final label = roundLabels[roundKeys[ri]] ?? roundKeys[ri];
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.center,
+      );
+      tp.layout(maxWidth: nodeWidth);
+      tp.paint(canvas, Offset(roundX + (nodeWidth - tp.width) / 2, 6));
+
+      // Divider line below label
+      final linePaint = Paint()
+        ..color = lineColor
+        ..strokeWidth = 1;
+      canvas.drawLine(
+        Offset(roundX - 4, roundHeaderHeight - 2),
+        Offset(roundX + nodeWidth + 4, roundHeaderHeight - 2),
+        linePaint,
+      );
+    }
+  }
+
   void _drawConnector(
     Canvas canvas,
     Offset fromTop,
@@ -209,38 +273,33 @@ class _BracketPainter extends CustomPainter {
     double midX,
   ) {
     final paint = Paint()
-      ..color = Colors.grey.shade300
+      ..color = isDark ? Colors.grey.shade600 : Colors.grey.shade300
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
     final path = Path();
 
-    // From top match: right edge → horizontal to midX
     path.moveTo(fromTop.dx + nodeWidth / 2, fromTop.dy);
     path.lineTo(midX, fromTop.dy);
 
-    // From bottom match: right edge → horizontal to midX
     path.moveTo(fromBottom.dx + nodeWidth / 2, fromBottom.dy);
     path.lineTo(midX, fromBottom.dy);
 
-    // Vertical line connecting the two horizontal ends
     path.moveTo(midX, fromTop.dy);
     path.lineTo(midX, fromBottom.dy);
 
-    // Horizontal from midpoint to next round node left edge
     path.moveTo(midX, (fromTop.dy + fromBottom.dy) / 2);
     path.lineTo(toNode.dx - nodeWidth / 2, toNode.dy);
 
     canvas.drawPath(path, paint);
   }
 
-  double _matchCenterY(int ri, int count, int mi, List<String> roundKeys, double canvasH) {
+  double _matchCenterY(int ri, int count, int mi, double availableH) {
     final totalSlots = roundSizes[_roundOrder[ri]] ?? count;
     final slotH = nodeHeight + gapY * 2;
     final totalH = totalSlots * slotH;
-    final startY = (canvasH - totalH) / 2 + slotH / 2;
-    // Place at evenly distributed positions within the round
-    return startY + (count > 1 ? mi * (totalH / (count)) : canvasH / 2);
+    final startY = (availableH - totalH) / 2 + slotH / 2;
+    return startY + (count > 1 ? mi * (totalH / count) : availableH / 2);
   }
 
   void _drawNode(
@@ -255,18 +314,17 @@ class _BracketPainter extends CustomPainter {
     Color accent, {
     bool topHalf = true,
   }) {
+    final bgColor = isDark ? Colors.grey.shade800 : Colors.white;
     final rRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(x, y, w, h),
       const Radius.circular(4),
     );
 
-    // Background
     canvas.drawRRect(
       rRect,
-      Paint()..color = Colors.white,
+      Paint()..color = bgColor,
     );
 
-    // Border
     canvas.drawRRect(
       rRect,
       Paint()
@@ -280,7 +338,8 @@ class _BracketPainter extends CustomPainter {
     final name = names[teamCode] ?? teamCode;
     final label = name.length > 4 ? name.substring(0, 4) : name;
 
-    // Team code text
+    final probColor = isDark ? Colors.grey.shade300 : Colors.grey.shade700;
+
     final tp = TextPainter(
       text: TextSpan(
         text: label,
@@ -295,7 +354,6 @@ class _BracketPainter extends CustomPainter {
     tp.layout(maxWidth: w - 28);
     tp.paint(canvas, Offset(x + 4, y + 2));
 
-    // Probability text
     if (prob != null) {
       final probPct = (prob * 100).round();
       final pp = TextPainter(
@@ -304,7 +362,7 @@ class _BracketPainter extends CustomPainter {
           style: TextStyle(
             fontSize: 9,
             fontWeight: FontWeight.bold,
-            color: Colors.grey.shade700,
+            color: probColor,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -316,6 +374,7 @@ class _BracketPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BracketPainter oldDelegate) {
-    return oldDelegate.matches != matches;
+    return oldDelegate.matches != matches
+        || oldDelegate.isDark != isDark;
   }
 }

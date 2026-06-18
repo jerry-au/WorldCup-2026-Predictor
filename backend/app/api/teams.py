@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.team import Team
-from ..models.player_stats import PlayerSeasonStats
 from ..models.dongqiudi_data import DongqiudiPlayerData
+from ..models.player_season_summary import DongqiudiPlayerSeasonSummary
 from ..schemas.team import TeamListOut, TeamDetailOut
 
 router = APIRouter(prefix="/api/v1/teams", tags=["teams"])
@@ -89,21 +89,26 @@ def get_team(code: str, db: Session = Depends(get_db)):
 
     players_out = []
     for p in team.players:
-        stats = (
-            db.query(PlayerSeasonStats)
-            .filter(PlayerSeasonStats.player_id == p.id)
+        # 读取懂球帝赛季统计数据
+        dqd_stats = (
+            db.query(DongqiudiPlayerSeasonSummary)
+            .filter(DongqiudiPlayerSeasonSummary.matched_player_id == p.id)
             .all()
         )
         stats_out = [
             {
-                "competition_code": s.competition_code,
+                "category": s.category,
+                "season": s.season,
+                "club_name": s.club_name,
                 "competition_name": s.competition_name,
+                "appearances": s.appearances,
+                "starts": s.starts,
                 "goals": s.goals,
                 "assists": s.assists,
-                "appearances": s.appearances,
-                "minutes_played": s.minutes_played,
+                "yellow_cards": s.yellow_cards,
+                "red_cards": s.red_cards,
             }
-            for s in stats
+            for s in dqd_stats
         ]
         best_pos = p.position
         players_out.append({
@@ -138,17 +143,21 @@ def get_team(code: str, db: Session = Depends(get_db)):
     }
 
 
-def _compute_starting_xi(players: list[dict]) -> list[dict] | None:
-    """Select starting XI in 4-3-3 formation based on minutes played."""
+def _compute_starting_xi(players: list[dict]) -> list[dict]:
+    """Select starting XI in 4-3-3 formation based on starts (首发次数).
+    If no season stats available, just take first 11 players by position.
+    """
     formation = {"GK": 1, "DF": 4, "MF": 3, "FW": 3}
     selected = []
-
     for pos, count in formation.items():
         candidates = [p for p in players if p.get("position") == pos and p not in selected]
+        if not candidates:
+            continue
+        # Sort by total starts (more = better), if no starts then keep original order
         candidates.sort(
-            key=lambda p: sum(s["minutes_played"] for s in p.get("season_stats", [])),
+            key=lambda p: sum(s.get("starts", 0) for s in p.get("season_stats", [])),
             reverse=True,
         )
         selected.extend(candidates[:count])
-
-    return selected if selected else None
+    # Always return a list (can be empty), never None
+    return selected

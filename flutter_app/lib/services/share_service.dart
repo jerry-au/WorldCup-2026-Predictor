@@ -16,7 +16,7 @@ class ShareService {
     final text = '''
 $emoji 世界杯预测分享 $emoji
 
-🇺🇸 ${teamA} vs ${teamB}
+🇺🇸 $teamA vs $teamB
 
 📊 预测概率:
 • 主胜: ${(winProb * 100).toStringAsFixed(1)}%
@@ -45,9 +45,9 @@ $emoji 世界杯预测分享 $emoji
     final text = '''
 🏆 世界杯模拟结果 🏆
 
-🥇 冠军: ${champion} (${(championProb * 100).toStringAsFixed(1)}%)
-🥈 亚军: ${runnerUp} (${(runnerUpProb * 100).toStringAsFixed(1)}%)
-⭐ 表现最佳: ${bestTeam} (${(bestTeamProb * 100).toStringAsFixed(1)}%)
+🥇 冠军: $champion (${(championProb * 100).toStringAsFixed(1)}%)
+🥈 亚军: $runnerUp (${(runnerUpProb * 100).toStringAsFixed(1)}%)
+⭐ 表现最佳: $bestTeam (${(bestTeamProb * 100).toStringAsFixed(1)}%)
 
 ---
 ⚽ 10,000次蒙特卡洛模拟
@@ -72,12 +72,12 @@ $emoji 世界杯预测分享 $emoji
     final text = '''
 📈 价值投注分享 📈
 
-⚽ ${teamA} vs ${teamB}
+⚽ $teamA vs $teamB
 
-🎯 推荐投注: ${outcome}
+🎯 推荐投注: $outcome
 📊 赔率: ${odds.toStringAsFixed(2)}
 💰 期望值: ${(ev * 100).toStringAsFixed(1)}%
-${starsStr} 推荐等级
+$starsStr 推荐等级
 
 ---
 ⚽ WorldCup 2026 Predictor

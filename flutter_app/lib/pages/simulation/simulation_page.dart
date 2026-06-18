@@ -323,27 +323,436 @@ class SimulationPage extends ConsumerWidget {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
-                Icon(Icons.swipe, size: 16, color: Colors.grey.shade400),
-                const SizedBox(width: 4),
-                Text('左右滑动', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                _BracketControls(
+                  onFitWidth: () {},
+                  onZoomIn: () {},
+                  onZoomOut: () {},
+                  onFullscreen: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => _FullscreenBracketPage(
+                          matches: bracketMatches,
+                          teamNames: teamNames,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
             const Divider(),
             SizedBox(
-              height: 300,
-              child: InteractiveViewer(
-                boundaryMargin: const EdgeInsets.all(40),
-                minScale: 0.3,
-                maxScale: 2.0,
-                child: BracketWidget(
-                  matches: bracketMatches,
-                  teamNames: teamNames,
-                ),
+              height: 360,
+              child: _InteractiveBracket(
+                matches: bracketMatches,
+                teamNames: teamNames,
               ),
             ),
           ],
         ),
       ),
     ).animate().fadeIn(delay: 400.ms);
+  }
+}
+
+// ─── Bracket Controls ────────────────────────────────────────
+
+class _BracketControls extends StatelessWidget {
+  final VoidCallback onFitWidth;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onFullscreen;
+
+  const _BracketControls({
+    required this.onFitWidth,
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onFullscreen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Colors.grey.shade600;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Tooltip(
+          message: '全图查看',
+          child: InkWell(
+            onTap: onFullscreen,
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.fullscreen, size: 16, color: color),
+                  const SizedBox(width: 4),
+                  Text('全图', style: TextStyle(fontSize: 12, color: color)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Interactive Bracket Widget ─────────────────────────────
+
+class _InteractiveBracket extends StatefulWidget {
+  final List<BracketMatch> matches;
+  final Map<String, String> teamNames;
+
+  const _InteractiveBracket({
+    required this.matches,
+    required this.teamNames,
+  });
+
+  @override
+  State<_InteractiveBracket> createState() => _InteractiveBracketState();
+}
+
+class _InteractiveBracketState extends State<_InteractiveBracket> {
+  final TransformationController _controller = TransformationController();
+  final GlobalKey _viewerKey = GlobalKey();
+  double _currentScale = 1.0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _fitToWidth() {
+    final bracket = BracketWidget(matches: widget.matches, teamNames: widget.teamNames);
+    final contentW = bracket.contentSize.width;
+    final renderBox = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final viewportW = renderBox.size.width;
+    final scale = viewportW / contentW;
+    _animateToScale(scale.clamp(0.3, 2.0));
+  }
+
+  void _zoomIn() {
+    final next = (_currentScale * 1.3).clamp(0.3, 2.0);
+    _animateToScale(next);
+  }
+
+  void _zoomOut() {
+    final next = (_currentScale / 1.3).clamp(0.3, 2.0);
+    _animateToScale(next);
+  }
+
+  void _animateToScale(double target) {
+    final start = _controller.value.clone();
+    final end = Matrix4.identity()..scale(target);
+
+    final tween = Matrix4Tween(begin: start, end: end);
+    final controller = AnimationController(
+      vsync: Navigator.of(context),
+      duration: const Duration(milliseconds: 200),
+    );
+
+    controller.addListener(() {
+      _controller.value = tween.evaluate(controller);
+      setState(() {
+        _currentScale = _controller.value.getMaxScaleOnAxis();
+      });
+    });
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        controller.dispose();
+      }
+    });
+    controller.forward();
+  }
+
+  void _handleDoubleTap(TapDownDetails details) {
+    final isZoomedOut = _currentScale <= 0.9;
+    _animateToScale(isZoomedOut ? 1.5 : 0.5);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          key: _viewerKey,
+          child: GestureDetector(
+            onDoubleTapDown: _handleDoubleTap,
+            child: InteractiveViewer(
+              transformationController: _controller,
+              boundaryMargin: const EdgeInsets.all(60),
+              minScale: 0.3,
+              maxScale: 2.0,
+              constrained: false,
+              onInteractionUpdate: (details) {
+                setState(() {
+                  _currentScale = _controller.value.getMaxScaleOnAxis();
+                });
+              },
+              child: BracketWidget(
+                matches: widget.matches,
+                teamNames: widget.teamNames,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.zoom_out, size: 20),
+              onPressed: _zoomOut,
+              tooltip: '缩小',
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${(_currentScale * 100).round()}%',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.zoom_in, size: 20),
+              onPressed: _zoomIn,
+              tooltip: '放大',
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _fitToWidth,
+              icon: const Icon(Icons.fit_screen, size: 18),
+              label: const Text('适应宽度', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                minimumSize: const Size(44, 36),
+              ),
+            ),
+          ],
+        ),
+        Text(
+          '双击放大/缩小 · 双指缩放 · 拖动查看',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Fullscreen Bracket Page ────────────────────────────────
+
+class _FullscreenBracketPage extends StatefulWidget {
+  final List<BracketMatch> matches;
+  final Map<String, String> teamNames;
+
+  const _FullscreenBracketPage({
+    required this.matches,
+    required this.teamNames,
+  });
+
+  @override
+  State<_FullscreenBracketPage> createState() => _FullscreenBracketPageState();
+}
+
+class _FullscreenBracketPageState extends State<_FullscreenBracketPage> {
+  final TransformationController _controller = TransformationController();
+  final GlobalKey _viewerKey = GlobalKey();
+  double _currentScale = 1.0;
+  bool _initialFitDone = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _fitToWidth() {
+    final bracket = BracketWidget(matches: widget.matches, teamNames: widget.teamNames);
+    final contentW = bracket.contentSize.width;
+    final renderBox = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final viewportW = renderBox.size.width - 32; // account for padding
+    final scale = viewportW / contentW;
+    _animateToScale(scale.clamp(0.2, 3.0));
+  }
+
+  void _fitToHeight() {
+    final bracket = BracketWidget(matches: widget.matches, teamNames: widget.teamNames);
+    final contentH = bracket.contentSize.height;
+    final renderBox = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final viewportH = renderBox.size.height - 100; // account for app bar + controls
+    final scale = viewportH / contentH;
+    _animateToScale(scale.clamp(0.2, 3.0));
+  }
+
+  void _zoomIn() {
+    final next = (_currentScale * 1.3).clamp(0.2, 3.0);
+    _animateToScale(next);
+  }
+
+  void _zoomOut() {
+    final next = (_currentScale / 1.3).clamp(0.2, 3.0);
+    _animateToScale(next);
+  }
+
+  void _resetView() {
+    _animateToScale(1.0);
+  }
+
+  void _animateToScale(double target) {
+    final start = _controller.value.clone();
+    final end = Matrix4.identity()..scale(target);
+
+    final tween = Matrix4Tween(begin: start, end: end);
+    final controller = AnimationController(
+      vsync: Navigator.of(context),
+      duration: const Duration(milliseconds: 250),
+    );
+
+    controller.addListener(() {
+      _controller.value = tween.evaluate(controller);
+      setState(() {
+        _currentScale = _controller.value.getMaxScaleOnAxis();
+      });
+    });
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        controller.dispose();
+      }
+    });
+    controller.forward();
+  }
+
+  void _handleDoubleTap(TapDownDetails details) {
+    final isZoomedOut = _currentScale <= 0.8;
+    _animateToScale(isZoomedOut ? 2.0 : 0.5);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Auto-fit to width on first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_initialFitDone && mounted) {
+        _initialFitDone = true;
+        _fitToWidth();
+      }
+    });
+
+    return Scaffold(
+      backgroundColor: Colors.black87,
+      appBar: AppBar(
+        backgroundColor: Colors.black87,
+        foregroundColor: Colors.white,
+        title: const Text('淘汰赛对阵图'),
+        elevation: 0,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          children: [
+            Expanded(
+              key: _viewerKey,
+              child: GestureDetector(
+                onDoubleTapDown: _handleDoubleTap,
+                child: InteractiveViewer(
+                  transformationController: _controller,
+                  boundaryMargin: const EdgeInsets.all(100),
+                  minScale: 0.2,
+                  maxScale: 3.0,
+                  constrained: false,
+                  onInteractionUpdate: (details) {
+                    setState(() {
+                      _currentScale = _controller.value.getMaxScaleOnAxis();
+                    });
+                  },
+                  child: BracketWidget(
+                    matches: widget.matches,
+                    teamNames: widget.teamNames,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade900,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildControlButton(
+                      icon: Icons.zoom_out,
+                      label: '缩小',
+                      onTap: _zoomOut,
+                    ),
+                    _buildControlButton(
+                      icon: Icons.zoom_in,
+                      label: '放大',
+                      onTap: _zoomIn,
+                    ),
+                    _buildControlButton(
+                      icon: Icons.fit_screen,
+                      label: '适应宽度',
+                      onTap: _fitToWidth,
+                    ),
+                    _buildControlButton(
+                      icon: Icons.height,
+                      label: '适应高度',
+                      onTap: _fitToHeight,
+                    ),
+                    _buildControlButton(
+                      icon: Icons.refresh,
+                      label: '重置',
+                      onTap: _resetView,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${(_currentScale * 100).round()}% · 双击切换缩放 · 双指缩放 · 拖动查看',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: Colors.white70),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+          ],
+        ),
+      ),
+    );
   }
 }

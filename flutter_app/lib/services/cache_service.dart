@@ -21,7 +21,7 @@ class CacheService {
     _memoryCache[key] = _CacheEntry(
       value: value,
       timestamp: DateTime.now(),
-      maxAge: maxAge ?? Duration(minutes: _defaultMaxAgeMinutes),
+      maxAge: maxAge ?? const Duration(minutes: _defaultMaxAgeMinutes),
     );
   }
 

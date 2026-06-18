@@ -120,7 +120,7 @@ ISO_MAP: dict[str, str] = {
     "BEL": "BE", "BIH": "BA", "BRA": "BR",
     "CAN": "CA", "CPV": "CV", "CIV": "CI", "COL": "CO",
     "CRC": "CR", "CRO": "HR", "CUR": "CW", "CZE": "CZ",
-    "ECU": "EC", "EGY": "EG", "ENG": "GB",
+    "ECU": "EC", "EGY": "EG", "ENG": "gb-eng",
     "FRA": "FR",
     "GER": "DE", "GHA": "GH",
     "HAI": "HT",
@@ -132,7 +132,7 @@ ISO_MAP: dict[str, str] = {
     "PAN": "PA", "PAR": "PY", "POR": "PT",
     "QAT": "QA",
     "RSA": "ZA",
-    "SCO": "GB-SCT", "SEN": "SN", "ESP": "ES", "SUI": "CH", "SWE": "SE",
+    "SCO": "gb-sct", "SEN": "SN", "ESP": "ES", "SUI": "CH", "SWE": "SE",
     "TUN": "TN", "TUR": "TR",
     "URU": "UY", "USA": "US", "UZB": "UZ",
 }
@@ -153,8 +153,8 @@ GROUP_MAP: dict[str, str] = {
     "ENG": "L", "CRO": "L", "PAN": "L", "GHA": "L",
 }
 
-# Flag URL pattern (using flagpedia)
-FLAG_URL_TEMPLATE = "https://flagpedia.net/{iso}/small.png"
+# Flag URL pattern (using flagcdn - supports sub-region codes like gb-eng, gb-sct)
+FLAG_URL_TEMPLATE = "https://flagcdn.com/w80/{iso}.png"
 
 # User-Agent rotation
 USER_AGENTS = [

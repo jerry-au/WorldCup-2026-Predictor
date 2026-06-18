@@ -23,6 +23,20 @@ class TeamInGroup:
 
 
 @dataclass
+class CompletedMatch:
+    """A completed group-stage match with known final score.
+
+    Used to seed the simulation with real-world results so that
+    only the remaining matches are randomly sampled.
+    """
+    team_a_code: str
+    team_b_code: str
+    score_a: int
+    score_b: int
+    group_name: str
+
+
+@dataclass
 class BracketSlot:
     """A single match slot in the most-likely knockout bracket."""
     round_name: str
@@ -120,12 +134,16 @@ class MonteCarloEngine:
         self,
         teams_by_group: Dict[str, List[TeamInGroup]],
         team_names: Dict[str, str],
+        completed_matches: List[CompletedMatch] | None = None,
     ) -> SimulationResults:
         """Run full tournament simulation.
 
         Args:
             teams_by_group: {group_letter: [TeamInGroup, ...]} for all 12 groups
             team_names: {team_code: display_name}
+            completed_matches: list of already-played group stage matches.
+                If provided, group stage simulation starts from these real
+                results and only simulates the remaining matches.
 
         Returns:
             SimulationResults with per-team advancement probabilities (0.0 - 1.0)
@@ -155,7 +173,7 @@ class MonteCarloEngine:
 
         # ── Phase 1: Group stage ──
         group_rankings, third_ranked = self._simulate_group_stage(
-            group_team_indices, all_comps
+            group_team_indices, all_comps, all_codes, completed_matches
         )
 
         # ── Phase 2: Determine qualified third-placed teams ──
@@ -185,8 +203,13 @@ class MonteCarloEngine:
         self,
         group_team_indices: Dict[str, List[int]],
         all_comps: np.ndarray,
+        all_codes: List[str],
+        completed_matches: List[CompletedMatch] | None = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Simulate group stage for all 12 groups.
+
+        If completed_matches is provided, those matches are applied as fixed
+        real-world results and only the remaining matches are sampled randomly.
 
         Returns:
             group_rankings: [N, 12, 4] — global team index per iteration, group, position
@@ -197,6 +220,12 @@ class MonteCarloEngine:
         third_ranked = np.zeros((self.N, n_groups, 3), dtype=np.int32)
 
         n_range = np.arange(self.N)
+
+        # Build lookup: group_name -> list of completed matches in that group
+        completed_by_group: Dict[str, List[CompletedMatch]] = {}
+        if completed_matches:
+            for m in completed_matches:
+                completed_by_group.setdefault(m.group_name, []).append(m)
 
         for gi, g in enumerate(self.GROUP_NAMES):
             idxs = group_team_indices.get(g, [])
@@ -209,7 +238,47 @@ class MonteCarloEngine:
             gd_arr = np.zeros((self.N, 4), dtype=np.int32)
             gf_arr = np.zeros((self.N, 4), dtype=np.int32)
 
+            # Map team_code -> group-internal index (0-3) for this group
+            code_to_internal = {all_codes[idx]: pos for pos, idx in enumerate(idxs)}
+
+            # Collect which matchups are already completed
+            group_completed = completed_by_group.get(g, [])
+            completed_pairs: set[tuple[int, int]] = set()
+
+            # Apply completed match results (fixed across all iterations)
+            for cm in group_completed:
+                i_pos = code_to_internal.get(cm.team_a_code)
+                j_pos = code_to_internal.get(cm.team_b_code)
+                if i_pos is None or j_pos is None:
+                    continue
+
+                g_i = cm.score_a
+                g_j = cm.score_b
+
+                if g_i > g_j:
+                    points[:, i_pos] += 3
+                elif g_i == g_j:
+                    points[:, i_pos] += 1
+                    points[:, j_pos] += 1
+                else:
+                    points[:, j_pos] += 3
+
+                gd_arr[:, i_pos] += g_i - g_j
+                gd_arr[:, j_pos] += g_j - g_i
+                gf_arr[:, i_pos] += g_i
+                gf_arr[:, j_pos] += g_j
+
+                # Mark this pair as completed (store sorted tuple)
+                completed_pairs.add(
+                    (min(i_pos, j_pos), max(i_pos, j_pos))
+                )
+
+            # Simulate remaining (not yet completed) matches
             for i, j in self.GROUP_MATCHES:
+                pair = (min(i, j), max(i, j))
+                if pair in completed_pairs:
+                    continue  # already played, skip
+
                 λ_i, λ_j = expected_goals(
                     comps[i], comps[j],
                     avg_goals=self._avg_goals,
@@ -557,7 +626,8 @@ def run_simulation(
     team_names: Dict[str, str],
     num_iterations: int = 10_000,
     seed: int = 42,
+    completed_matches: List[CompletedMatch] | None = None,
 ) -> SimulationResults:
     """Run full tournament simulation with default engine."""
     engine = MonteCarloEngine(num_iterations=num_iterations, seed=seed)
-    return engine.simulate(teams_by_group, team_names)
+    return engine.simulate(teams_by_group, team_names, completed_matches)

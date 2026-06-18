@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class PlayerSeasonStatsOut(BaseModel):
-    competition_code: str
+    competition_code: str | None = None
     competition_name: str | None = None
     goals: int = 0
     assists: int = 0

@@ -15,3 +15,19 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / Trae
+.trae/
+.idea/
+.vscode/
+*.swp
+
+# Archives
+*.zip
+*.tar.gz
+*.rar

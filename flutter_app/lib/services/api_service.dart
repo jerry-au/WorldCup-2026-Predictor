@@ -175,40 +175,45 @@ class ApiService {
     return resp.data;
   }
 
-  Future<dynamic> triggerPlayerDataRefresh() async {
+  Future<String> triggerPlayerDataRefresh() async {
     final resp = await _dio.post(
       ApiConfig.fetchPlayersEndpoint,
       queryParameters: {'source': 'dongqiudi'},
     );
-    return resp.data;
+    return resp.data['task_id'] ?? '';
   }
 
-  Future<dynamic> triggerSeasonSummariesRefresh() async {
+  Future<String> triggerSeasonSummariesRefresh() async {
     final resp = await _dio.post(ApiConfig.fetchSeasonSummariesEndpoint);
-    return resp.data;
+    return resp.data['task_id'] ?? '';
   }
 
-  Future<dynamic> triggerPlayerAbilitiesRefresh() async {
+  Future<String> triggerPlayerAbilitiesRefresh() async {
     final resp = await _dio.post(ApiConfig.fetchPlayerAbilitiesEndpoint);
-    return resp.data;
+    return resp.data['task_id'] ?? '';
   }
 
-  Future<dynamic> triggerMatchResultsRefresh() async {
+  Future<String> triggerMatchResultsRefresh() async {
     final resp = await _dio.post(ApiConfig.fetchResultsEndpoint);
-    return resp.data;
+    return resp.data['task_id'] ?? '';
   }
 
-  Future<dynamic> triggerStandingsRefresh() async {
+  Future<String> triggerStandingsRefresh() async {
     final resp = await _dio.post(ApiConfig.fetchStandingsEndpoint);
-    return resp.data;
+    return resp.data['task_id'] ?? '';
   }
 
-  Future<dynamic> triggerOddsRefresh() async {
+  Future<String> triggerOddsRefresh() async {
     final resp = await _dio.post(
       ApiConfig.fetchOddsEndpoint,
       queryParameters: {'source': 'odds'},
     );
-    return resp.data;
+    return resp.data['task_id'] ?? '';
+  }
+
+  Future<Map<String, dynamic>> getDataTaskProgress(String taskId) async {
+    final resp = await _dio.get('${ApiConfig.dataRefreshProgressEndpoint}/$taskId');
+    return Map<String, dynamic>.from(resp.data);
   }
 
   // ─── Matches ───────────────────────────────────────────────

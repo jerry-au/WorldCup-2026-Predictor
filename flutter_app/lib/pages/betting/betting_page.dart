@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/recommendation.dart';
 import '../../providers/recommendations_provider.dart';
+import '../prediction/prediction_page.dart';
 import '../../widgets/common_widgets.dart';
 import 'dart:math' as math;
 
@@ -48,11 +49,13 @@ class BettingPage extends ConsumerWidget {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Row(
                             children: [
-                              Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+                              Icon(Icons.schedule,
+                                  size: 14, color: Colors.grey.shade500),
                               const SizedBox(width: 4),
                               Text(
                                 '推荐数据每 8 小时自动更新',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey.shade500),
                               ),
                             ],
                           ),
@@ -82,7 +85,7 @@ class BettingPage extends ConsumerWidget {
                     return Column(
                       children: [
                         _ValueBetStatsCard(bets: bets),
-                        ...bets.map((bet) => _ValueBetCard(bet: bet)).toList(),
+                        ...bets.map((bet) => _ValueBetCard(bet: bet)),
                       ],
                     );
                   },
@@ -108,7 +111,9 @@ class BettingPage extends ConsumerWidget {
                       );
                     }
                     return Column(
-                      children: alerts.map((alert) => _DiscrepancyCard(alert: alert)).toList(),
+                      children: alerts
+                          .map((alert) => _DiscrepancyCard(alert: alert))
+                          .toList(),
                     );
                   },
                 ),
@@ -151,7 +156,8 @@ class SectionTitle extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 if (subtitle != null)
                   Text(
@@ -189,9 +195,11 @@ class EmptyStateCard extends StatelessWidget {
             children: [
               Icon(icon, size: 48, color: Colors.grey.shade400),
               const SizedBox(height: 12),
-              Text(title, style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+              Text(title,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
               const SizedBox(height: 4),
-              Text(subtitle, style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+              Text(subtitle,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
             ],
           ),
         ),
@@ -220,8 +228,11 @@ class _ValueBetStatsCard extends StatelessWidget {
             Expanded(
               child: Column(
                 children: [
-                  Text('${bets.length}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  const Text('价值场次', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text('${bets.length}',
+                      style: const TextStyle(
+                          fontSize: 24, fontWeight: FontWeight.bold)),
+                  const Text('价值场次',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
             ),
@@ -229,8 +240,11 @@ class _ValueBetStatsCard extends StatelessWidget {
             Expanded(
               child: Column(
                 children: [
-                  Text('${(avgEv * 100).toStringAsFixed(1)}%', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  const Text('平均 EV', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text('${(avgEv * 100).toStringAsFixed(1)}%',
+                      style: const TextStyle(
+                          fontSize: 24, fontWeight: FontWeight.bold)),
+                  const Text('平均 EV',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
             ),
@@ -238,8 +252,11 @@ class _ValueBetStatsCard extends StatelessWidget {
             Expanded(
               child: Column(
                 children: [
-                  Text('$highValueCount', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  const Text('强烈推荐', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text('$highValueCount',
+                      style: const TextStyle(
+                          fontSize: 24, fontWeight: FontWeight.bold)),
+                  const Text('强烈推荐',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
             ),
@@ -257,54 +274,76 @@ class _ValueBetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                _ratingBadge(bet.starCount),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+      onTap: () => _navigateToPrediction(context),
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  _ratingBadge(bet.starCount),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${bet.teamA} vs ${bet.teamB}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 15),
+                        ),
+                        Text(
+                          '${bet.outcomeLabel} @ ${bet.odds.toStringAsFixed(2)}',
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${bet.teamA} vs ${bet.teamB}',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                        'EV ${(bet.ev * 100).toStringAsFixed(1)}%',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: bet.ev >= 0.15
+                              ? Colors.green
+                              : bet.ev >= 0.05
+                                  ? Colors.orange
+                                  : Colors.grey,
+                        ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        '${bet.outcomeLabel} @ ${bet.odds.toStringAsFixed(2)}',
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        '系统 ${(bet.systemProb * 100).toStringAsFixed(0)}%',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.blue),
                       ),
                     ],
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'EV ${(bet.ev * 100).toStringAsFixed(1)}%',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: bet.ev >= 0.15 ? Colors.green : bet.ev >= 0.05 ? Colors.orange : Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '系统 ${(bet.systemProb * 100).toStringAsFixed(0)}%',
-                      style: const TextStyle(fontSize: 11, color: Colors.blue),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _ProbabilityChart(systemProb: bet.systemProb, marketProb: bet.marketProb),
-          ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              _ProbabilityChart(
+                  systemProb: bet.systemProb, marketProb: bet.marketProb),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToPrediction(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PredictionPage(
+          initialTeamA: bet.teamAcode,
+          initialTeamB: bet.teamBcode,
         ),
       ),
     );
@@ -341,7 +380,9 @@ class _ValueBetCard extends StatelessWidget {
         children: [
           const Icon(Icons.star, size: 12, color: Colors.amber),
           const SizedBox(width: 2),
-          Text('${'★' * stars}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor)),
+          Text('★' * stars,
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.bold, color: textColor)),
         ],
       ),
     );
@@ -364,7 +405,8 @@ class _ProbabilityChart extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('概率对比', style: TextStyle(fontSize: 11, color: Colors.grey)),
+              const Text('概率对比',
+                  style: TextStyle(fontSize: 11, color: Colors.grey)),
               const SizedBox(height: 4),
               Stack(
                 children: [
@@ -396,9 +438,12 @@ class _ProbabilityChart extends StatelessWidget {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  const Text('系统', style: TextStyle(fontSize: 10, color: Colors.blue)),
+                  const Text('系统',
+                      style: TextStyle(fontSize: 10, color: Colors.blue)),
                   const SizedBox(width: 12),
-                  Text('市场 ${(marketProb * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 10, color: Colors.orange)),
+                  Text('市场 ${(marketProb * 100).toStringAsFixed(0)}%',
+                      style:
+                          const TextStyle(fontSize: 10, color: Colors.orange)),
                 ],
               ),
             ],
@@ -417,65 +462,89 @@ class _DiscrepancyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final delta = (alert.discrepancy['max_delta'] as num?)?.toDouble() ?? 0;
-    final confidence = (alert.discrepancy['system_confidence'] as num?)?.toDouble() ?? 0;
+    final confidence =
+        (alert.discrepancy['system_confidence'] as num?)?.toDouble() ?? 0;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: Colors.orange.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade200,
-                    borderRadius: BorderRadius.circular(8),
+    return GestureDetector(
+      onTap: () => _navigateToPrediction(context),
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        color: Colors.orange.shade50,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade200,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.warning_amber,
+                        size: 16, color: Colors.orange.shade700),
                   ),
-                  child: Icon(Icons.warning_amber, size: 16, color: Colors.orange.shade700),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${alert.teamA} vs ${alert.teamB}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 15),
+                        ),
+                        Text('${alert.group}组',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${alert.teamA} vs ${alert.teamB}',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                        '分歧 ${(delta * 100).toStringAsFixed(0)}%',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade700),
                       ),
-                      Text('${alert.group}组', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(
+                        '置信度 ${(confidence * 100).toStringAsFixed(0)}%',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
                     ],
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '分歧 ${(delta * 100).toStringAsFixed(0)}%',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade700),
-                    ),
-                    Text(
-                      '置信度 ${(confidence * 100).toStringAsFixed(0)}%',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (alert.discrepancy['detail'] != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  alert.discrepancy['detail'] as String,
-                  style: TextStyle(color: Colors.orange.shade800, fontSize: 13),
-                ),
+                ],
               ),
-            _DiscrepancyProbRow(alert: alert),
-          ],
+              const SizedBox(height: 12),
+              if (alert.discrepancy['detail'] != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    alert.discrepancy['detail'] as String,
+                    style:
+                        TextStyle(color: Colors.orange.shade800, fontSize: 13),
+                  ),
+                ),
+              _DiscrepancyProbRow(alert: alert),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToPrediction(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PredictionPage(
+          initialTeamA: alert.teamAcode,
+          initialTeamB: alert.teamBcode,
         ),
       ),
     );
@@ -502,30 +571,57 @@ class _DiscrepancyProbRow extends StatelessWidget {
         Expanded(
           child: Column(
             children: [
-              Text('${(win * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue)),
-              const Text('主胜', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              Text('${(win * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue)),
+              const Text('主胜',
+                  style: TextStyle(fontSize: 10, color: Colors.grey)),
               if (marketWin > 0)
-                Text('市场 ${(marketWin * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 9, color: Colors.orange)),
+                Text('市场 ${(marketWin * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(fontSize: 9, color: Colors.orange)),
+              if (marketWin == 0)
+                const Text('市场 暂无',
+                    style: TextStyle(fontSize: 9, color: Colors.grey)),
             ],
           ),
         ),
         Expanded(
           child: Column(
             children: [
-              Text('${(draw * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue)),
-              const Text('平局', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              Text('${(draw * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue)),
+              const Text('平局',
+                  style: TextStyle(fontSize: 10, color: Colors.grey)),
               if (marketDraw > 0)
-                Text('市场 ${(marketDraw * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 9, color: Colors.orange)),
+                Text('市场 ${(marketDraw * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(fontSize: 9, color: Colors.orange)),
+              if (marketDraw == 0)
+                const Text('市场 暂无',
+                    style: TextStyle(fontSize: 9, color: Colors.grey)),
             ],
           ),
         ),
         Expanded(
           child: Column(
             children: [
-              Text('${(lose * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue)),
-              const Text('客胜', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              Text('${(lose * 100).toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue)),
+              const Text('客胜',
+                  style: TextStyle(fontSize: 10, color: Colors.grey)),
               if (marketLose > 0)
-                Text('市场 ${(marketLose * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 9, color: Colors.orange)),
+                Text('市场 ${(marketLose * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(fontSize: 9, color: Colors.orange)),
+              if (marketLose == 0)
+                const Text('市场 暂无',
+                    style: TextStyle(fontSize: 9, color: Colors.grey)),
             ],
           ),
         ),

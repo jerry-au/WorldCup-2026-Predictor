@@ -1,10 +1,13 @@
 """Data management API — trigger and monitor batch fetching, data refresh status."""
 
+import asyncio
+import uuid
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 
-from ..database import get_db
+from ..database import get_db, SessionLocal
 from ..services.fetcher import DataFetcher
 from ..tasks.scheduler import (
     get_data_source_status,
@@ -14,8 +17,84 @@ from ..tasks.scheduler import (
     get_refresh_interval_hours,
     refresh_elo_rankings,
 )
+from ..models.data_refresh_log import DataRefreshLog
 
 router = APIRouter(prefix="/api/v1/data", tags=["data"])
+
+# Thread pool for blocking scrape operations
+_executor = ThreadPoolExecutor(max_workers=4)
+
+# In-memory task tracking (resets on server restart)
+_active_tasks: dict[str, dict] = {}
+
+
+def _run_async_task(task_id: str, source: str, refresh_type: str, func, *args, **kwargs):
+    """Run a blocking scrape function in thread pool with progress tracking."""
+    _active_tasks[task_id] = {
+        "status": "running",
+        "progress": 0.0,
+        "source": source,
+        "refresh_type": refresh_type,
+        "started_at": datetime.utcnow().isoformat(),
+    }
+    db = SessionLocal()
+    log = DataRefreshLog.log_start(source, refresh_type)
+    db.add(log)
+    db.commit()
+
+    try:
+        result = func(*args, **kwargs)
+        log.mark_complete(
+            records_updated=result.get("records_saved", 0) if isinstance(result, dict) else 0,
+            details=str(result)[:2000] if result else None,
+        )
+        _active_tasks[task_id] = {
+            "status": "success",
+            "progress": 100.0,
+            "source": source,
+            "refresh_type": refresh_type,
+            "result": result if isinstance(result, dict) else {"status": "ok"},
+        }
+    except Exception as e:
+        log.mark_failed(str(e))
+        _active_tasks[task_id] = {
+            "status": "failed",
+            "progress": _active_tasks.get(task_id, {}).get("progress", 0),
+            "source": source,
+            "refresh_type": refresh_type,
+            "error": str(e),
+        }
+    finally:
+        db.commit()
+        db.close()
+
+
+@router.get("/refresh/progress/{task_id}")
+def get_task_progress(task_id: str):
+    """Get progress of an active or completed task."""
+    task = _active_tasks.get(task_id)
+    if not task:
+        # Check DB for recently completed tasks
+        db = next(get_db())
+        recent_log = (
+            db.query(DataRefreshLog)
+            .filter(DataRefreshLog.status.in_(["running", "success", "failed"]))
+            .order_by(DataRefreshLog.started_at.desc())
+            .first()
+        )
+        db.close()
+        if recent_log:
+            return {
+                "task_id": task_id,
+                "status": recent_log.status,
+                "progress": recent_log.progress or (100.0 if recent_log.status == "success" else 0.0),
+                "source": recent_log.source,
+                "refresh_type": recent_log.refresh_type,
+                "records_updated": recent_log.records_updated,
+                "error_message": recent_log.error_message,
+            }
+        return {"task_id": task_id, "status": "not_found", "progress": 0}
+    return {"task_id": task_id, **task}
 
 
 @router.post("/fetch/scorers")
@@ -37,21 +116,100 @@ def trigger_dongqiudi():
 
 
 @router.post("/fetch/dongqiudi/national-rosters")
-def trigger_dongqiudi_national_rosters():
-    """Scrape World Cup national-team rosters from Dongqiudi."""
+def trigger_dongqiudi_national_rosters(background_tasks: BackgroundTasks):
+    """Scrape World Cup national-team rosters from Dongqiudi (async)."""
     from ..tasks.dongqiudi_fetch import run_dongqiudi_national_rosters
 
-    result = run_dongqiudi_national_rosters()
-    return {"status": "ok", "result": result}
+    task_id = str(uuid.uuid4())[:8]
+    background_tasks.add_task(
+        _run_async_task, task_id, "dongqiudi", "national_rosters",
+        run_dongqiudi_national_rosters
+    )
+    return {"status": "accepted", "task_id": task_id, "message": "任务已提交，正在后台执行"}
+
+
+@router.post("/fetch/dongqiudi/player-season-summaries")
+def trigger_player_season_summaries(background_tasks: BackgroundTasks):
+    """Scrape player season summary data from Dongqiudi (async)."""
+    from ..services.dongqiudi_player_season_summaries import scrape_all_player_season_summaries
+
+    task_id = str(uuid.uuid4())[:8]
+
+    def _run():
+        db = SessionLocal()
+        try:
+            result = scrape_all_player_season_summaries(db)
+            return result
+        finally:
+            db.close()
+
+    background_tasks.add_task(
+        _run_async_task, task_id, "dongqiudi", "player_season_summaries", _run
+    )
+    return {"status": "accepted", "task_id": task_id, "message": "任务已提交，正在后台执行"}
+
+
+@router.post("/fetch/dongqiudi/player-abilities")
+def trigger_player_abilities(background_tasks: BackgroundTasks):
+    """Scrape player ability data from Dongqiudi (async)."""
+    from ..services.dongqiudi_player_ability import scrape_all_player_abilities
+
+    task_id = str(uuid.uuid4())[:8]
+
+    def _run():
+        db = SessionLocal()
+        try:
+            result = scrape_all_player_abilities(db)
+            return result
+        finally:
+            db.close()
+
+    background_tasks.add_task(
+        _run_async_task, task_id, "dongqiudi", "player_abilities", _run
+    )
+    return {"status": "accepted", "task_id": task_id, "message": "任务已提交，正在后台执行"}
+
+
+@router.post("/fetch/standings")
+def trigger_fetch_standings(background_tasks: BackgroundTasks):
+    """Fetch group standings from Dongqiudi (async)."""
+    from ..services.dongqiudi_standings import scrape_all_standings
+
+    task_id = str(uuid.uuid4())[:8]
+
+    def _run():
+        db = SessionLocal()
+        try:
+            result = scrape_all_standings(db)
+            return result
+        finally:
+            db.close()
+
+    background_tasks.add_task(
+        _run_async_task, task_id, "dongqiudi", "standings", _run
+    )
+    return {"status": "accepted", "task_id": task_id, "message": "任务已提交，正在后台执行"}
 
 
 @router.post("/fetch/results")
-def trigger_fetch_results():
-    """Fetch matches + standings + tournament from Zafronix → save to local DB."""
-    from ..tasks.batch_fetch import run_zafronix_batch
+def trigger_fetch_results(background_tasks: BackgroundTasks):
+    """Fetch match schedule and results from Dongqiudi (async)."""
+    from ..services.dongqiudi_match_results import scrape_all_matches
 
-    result = run_zafronix_batch()
-    return {"status": "ok", "result": result}
+    task_id = str(uuid.uuid4())[:8]
+
+    def _run():
+        db = SessionLocal()
+        try:
+            result = scrape_all_matches(db)
+            return result
+        finally:
+            db.close()
+
+    background_tasks.add_task(
+        _run_async_task, task_id, "dongqiudi", "match_results", _run
+    )
+    return {"status": "accepted", "task_id": task_id, "message": "任务已提交，正在后台执行"}
 
 
 @router.post("/fetch/elo-rankings")
@@ -140,6 +298,25 @@ def fetch_status():
     ).count()
     db.close()
 
+    # Count matches and standings from dongqiudi tables
+    from ..models.dongqiudi_match import DongqiudiMatch
+    from ..models.odds_data import MatchOddsSummary
+
+    db2 = next(get_db())
+    dqd_matches = db2.query(DongqiudiMatch).count()
+    dqd_standings = 0
+    completed_matches = db2.query(DongqiudiMatch).filter(
+        DongqiudiMatch.status == "completed"
+    ).count()
+    # standings table may not exist yet
+    try:
+        from ..models.dongqiudi_standing import DongqiudiStanding
+        dqd_standings = db2.query(DongqiudiStanding).count()
+    except Exception:
+        pass
+    odds_count = db2.query(MatchOddsSummary).count()
+    db2.close()
+
     fetcher = DataFetcher()
     return {
         "player_stats_imported": total_stats,
@@ -153,7 +330,13 @@ def fetch_status():
             "matched_players": dqd_matched,
             "match_coverage_pct": round(dqd_matched / dqd_players * 100, 1) if dqd_players else 0,
         },
-        "queue": fetcher.queue_status(),
+        "dongqiudi_matches": dqd_matches,
+        "dongqiudi_completed_matches": completed_matches,
+        "dongqiudi_standings": dqd_standings,
+        "queue": {
+            **fetcher.queue_status(),
+            "odds": odds_count,
+        },
     }
 
 
@@ -187,7 +370,7 @@ def trigger_refresh(source: str = "all"):
         refresh_odds_data,
         refresh_player_data,
         refresh_dongqiudi_rosters,
-        refresh_zafronix_results,
+        refresh_dongqiudi_matches,
     )
 
     triggers = {
@@ -195,7 +378,7 @@ def trigger_refresh(source: str = "all"):
         "odds": refresh_odds_data,
         "player_data": refresh_player_data,
         "dongqiudi": refresh_dongqiudi_rosters,
-        "zafronix": refresh_zafronix_results,
+        "match_results": refresh_dongqiudi_matches,
         "elo": refresh_elo_rankings,
     }
 

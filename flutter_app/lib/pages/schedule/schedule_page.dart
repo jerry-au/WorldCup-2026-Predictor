@@ -294,7 +294,7 @@ class _ScheduleMatchCard extends StatelessWidget {
                     ),
                     child: Text(
                       _getStageLabel(match.stage),
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -334,14 +334,14 @@ class _ScheduleMatchCard extends StatelessWidget {
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            errorBuilder: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           match.home.nameCn ?? match.home.name,
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -358,7 +358,7 @@ class _ScheduleMatchCard extends StatelessWidget {
                             children: [
                               Text(
                                 '${match.score?.home ?? "-"} : ${match.score?.away ?? "-"}',
-                                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.green),
+                                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.green),
                               ),
                               if (match.score != null && (match.score!.homeEt != null || match.score!.homePenalties != null))
                                 Padding(
@@ -394,14 +394,14 @@ class _ScheduleMatchCard extends StatelessWidget {
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            errorBuilder: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           match.away.nameCn ?? match.away.name,
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -442,12 +442,12 @@ class _ScheduleMatchCard extends StatelessWidget {
                     gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.red.shade400]),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SizedBox(width: 8, height: 8, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white)),
-                      const SizedBox(width: 6),
-                      const Text('进行中', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                      SizedBox(width: 6),
+                      Text('进行中', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                     ],
                   ),
                 ),

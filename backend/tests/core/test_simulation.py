@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from app.core.simulation import MonteCarloEngine, TeamInGroup, SimulationResults
+from app.core.simulation import MonteCarloEngine, TeamInGroup, SimulationResults, CompletedMatch
 from app.core.elo import composite_rating
 
 
@@ -159,3 +159,74 @@ def test_tiebreaker_no_crash():
 
     assert len(result.team_codes) == 48
     assert all(0.0 <= p <= 1.0 for p in result.champion), "Champion probabilities out of range"
+
+
+def test_completed_matches_seeded_correctly():
+    """Completed match results are fixed and affect group standings."""
+    # Setup: one group with 4 teams of varying strength
+    groups = {
+        "A": [
+            TeamInGroup(code="T00", group="A", composite=1800.0),
+            TeamInGroup(code="T01", group="A", composite=1700.0),
+            TeamInGroup(code="T02", group="A", composite=1600.0),
+            TeamInGroup(code="T03", group="A", composite=1500.0),
+        ]
+    }
+    # Fill remaining groups with filler teams
+    for g_idx in range(1, 12):
+        g = chr(ord('A') + g_idx)
+        groups[g] = [
+            TeamInGroup(code=f"{g}1", group=g, composite=1600.0),
+            TeamInGroup(code=f"{g}2", group=g, composite=1600.0),
+            TeamInGroup(code=f"{g}3", group=g, composite=1600.0),
+            TeamInGroup(code=f"{g}4", group=g, composite=1600.0),
+        ]
+
+    names = _make_team_names(groups)
+
+    # Pre-set match: weakest team (T03) beats strongest team (T00) 3-0
+    # This is an unlikely result that should skew probabilities noticeably
+    completed = [
+        CompletedMatch(
+            team_a_code="T00", team_b_code="T03",
+            score_a=0, score_b=3, group_name="A",
+        ),
+    ]
+
+    engine = MonteCarloEngine(num_iterations=2000, seed=42)
+    result_with = engine.simulate(groups, names, completed_matches=completed)
+
+    engine2 = MonteCarloEngine(num_iterations=2000, seed=42)
+    result_without = engine2.simulate(groups, names)
+
+    t00_idx_with = result_with.team_codes.index("T00")
+    t03_idx_with = result_with.team_codes.index("T03")
+    t00_idx_without = result_without.team_codes.index("T00")
+    t03_idx_without = result_without.team_codes.index("T03")
+
+    # T00 should have LOWER advancement probability when they lose 0-3
+    assert result_with.round_32[t00_idx_with] < result_without.round_32[t00_idx_without], (
+        f"T00 R32 with upset ({result_with.round_32[t00_idx_with]}) should be < "
+        f"without ({result_without.round_32[t00_idx_without]})"
+    )
+
+    # T03 should have HIGHER advancement probability when they win 3-0
+    assert result_with.round_32[t03_idx_with] > result_without.round_32[t03_idx_without], (
+        f"T03 R32 with upset ({result_with.round_32[t03_idx_with]}) should be > "
+        f"without ({result_without.round_32[t03_idx_without]})"
+    )
+
+
+def test_completed_matches_empty_same_as_none():
+    """Empty completed_matches list produces same results as None."""
+    groups = _make_teams_by_group()
+    names = _make_team_names(groups)
+
+    engine1 = MonteCarloEngine(num_iterations=100, seed=42)
+    result_none = engine1.simulate(groups, names, completed_matches=None)
+
+    engine2 = MonteCarloEngine(num_iterations=100, seed=42)
+    result_empty = engine2.simulate(groups, names, completed_matches=[])
+
+    np.testing.assert_array_equal(result_none.champion, result_empty.champion)
+    np.testing.assert_array_equal(result_none.round_32, result_empty.round_32)

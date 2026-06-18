@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime, timedelta, time
+from pathlib import Path
 from sqlalchemy.orm import Session
 from ..core.prediction import PredictionEngine
 from ..models.odds_data import MatchOddsHistory, MatchOddsSummary
@@ -8,6 +9,20 @@ from ..models.dongqiudi_data import DongqiudiTeamData
 
 engine = PredictionEngine()
 CACHE_TTL_SECONDS = 300
+STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "images"
+
+
+def _resolve_flag_url(team: Team | None) -> str | None:
+    """解析国旗URL：本地文件存在则用本地路径，否则用CDN"""
+    if not team:
+        return None
+    if team.flag_url:
+        return team.flag_url
+    if team.local_flag_path:
+        local_path = STATIC_DIR / team.local_flag_path
+        if local_path.exists():
+            return f"/static/images/{team.local_flag_path}"
+    return None
 
 
 def _resolve_team_name_cn(db: Session, team: Team | None, code: str, fallback_cn: str | None = None) -> str | None:
@@ -121,13 +136,13 @@ def _build_match_item(db: Session, match) -> dict:
             "code": match.team_home_code,
             "name": team_a.name if team_a else match.team_home_name_cn,
             "name_cn": _resolve_team_name_cn(db, team_a, match.team_home_code, getattr(match, 'team_home_name_cn', None)),
-            "flag_url": f"/static/images/{team_a.local_flag_path}" if (team_a and team_a.local_flag_path) else (team_a.flag_url if team_a else None),
+            "flag_url": _resolve_flag_url(team_a),
         },
         "away": {
             "code": match.team_away_code,
             "name": team_b.name if team_b else match.team_away_name_cn,
             "name_cn": _resolve_team_name_cn(db, team_b, match.team_away_code, getattr(match, 'team_away_name_cn', None)),
-            "flag_url": f"/static/images/{team_b.local_flag_path}" if (team_b and team_b.local_flag_path) else (team_b.flag_url if team_b else None),
+            "flag_url": _resolve_flag_url(team_b),
         },
         "stage": match.stage,
         "group_name": match.group_name,
@@ -178,13 +193,13 @@ def _build_full_match_item(db: Session, match) -> dict:
             "code": match.team_home_code,
             "name": team_a.name if team_a else match.team_home_name_cn,
             "name_cn": _resolve_team_name_cn(db, team_a, match.team_home_code, getattr(match, 'team_home_name_cn', None)),
-            "flag_url": f"/static/images/{team_a.local_flag_path}" if (team_a and team_a.local_flag_path) else (team_a.flag_url if team_a else None),
+            "flag_url": _resolve_flag_url(team_a),
         },
         "away": {
             "code": match.team_away_code,
             "name": team_b.name if team_b else match.team_away_name_cn,
             "name_cn": _resolve_team_name_cn(db, team_b, match.team_away_code, getattr(match, 'team_away_name_cn', None)),
-            "flag_url": f"/static/images/{team_b.local_flag_path}" if (team_b and team_b.local_flag_path) else (team_b.flag_url if team_b else None),
+            "flag_url": _resolve_flag_url(team_b),
         },
         "stage": match.stage,
         "group_name": match.group_name,

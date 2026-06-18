@@ -1,6 +1,8 @@
 class ValueBet {
   final String teamA;
   final String teamB;
+  final String teamAcode;
+  final String teamBcode;
   final String outcome;
   final double odds;
   final double ev;
@@ -11,6 +13,8 @@ class ValueBet {
   ValueBet({
     required this.teamA,
     required this.teamB,
+    required this.teamAcode,
+    required this.teamBcode,
     required this.outcome,
     required this.odds,
     required this.ev,
@@ -23,6 +27,8 @@ class ValueBet {
     return ValueBet(
       teamA: json['team_a'] as String? ?? '',
       teamB: json['team_b'] as String? ?? '',
+      teamAcode: json['team_a_code'] as String? ?? '',
+      teamBcode: json['team_b_code'] as String? ?? '',
       outcome: json['outcome'] as String? ?? '',
       odds: (json['odds'] as num?)?.toDouble() ?? 0,
       ev: (json['ev'] as num?)?.toDouble() ?? 0,
@@ -53,6 +59,8 @@ class ValueBet {
 class DiscrepancyAlert {
   final String teamA;
   final String teamB;
+  final String teamAcode;
+  final String teamBcode;
   final String group;
   final Map<String, dynamic> discrepancy;
   final Map<String, double> systemProbs;
@@ -61,6 +69,8 @@ class DiscrepancyAlert {
   DiscrepancyAlert({
     required this.teamA,
     required this.teamB,
+    required this.teamAcode,
+    required this.teamBcode,
     required this.group,
     required this.discrepancy,
     required this.systemProbs,
@@ -71,6 +81,8 @@ class DiscrepancyAlert {
     return DiscrepancyAlert(
       teamA: json['team_a'] as String? ?? '',
       teamB: json['team_b'] as String? ?? '',
+      teamAcode: json['team_a_code'] as String? ?? '',
+      teamBcode: json['team_b_code'] as String? ?? '',
       group: json['group'] as String? ?? '',
       discrepancy: (json['discrepancy'] as Map<String, dynamic>?) ?? {},
       systemProbs: (json['system_probs'] as Map<String, dynamic>?)

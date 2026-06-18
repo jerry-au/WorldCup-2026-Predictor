@@ -145,6 +145,15 @@ class _PredictionPageState extends ConsumerState<PredictionPage> {
       data: (teams) {
         // Exclude already selected team (for away selector)
         final filtered = teams.where((t) => t.code != (label.contains('B') ? _teamA : _teamB)).toList();
+        // Check if the current value is actually in the filtered list
+        // If not (e.g. cached name instead of code), set value to null to avoid assertion error
+        final validValue = value == null || filtered.any((t) => t.code == value);
+        if (!validValue) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            onChanged(null);
+          });
+          value = null;
+        }
         return DropdownButtonFormField<String>(
           value: value,
           decoration: InputDecoration(
@@ -159,6 +168,8 @@ class _PredictionPageState extends ConsumerState<PredictionPage> {
             );
           }).toList(),
           onChanged: onChanged,
+          isExpanded: false,
+          menuMaxHeight: 400,
         ).animate().fadeIn();
       },
     );

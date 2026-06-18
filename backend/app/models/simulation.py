@@ -10,7 +10,7 @@ from ..database import Base
 class SimulationRun(Base):
     __tablename__ = "simulation_runs"
 
-    id = Column(String, primary_key=True)
+    id = Column(String(36), primary_key=True)
     status = Column(String, nullable=False, default="pending")  # pending|running|completed|failed
     total_iterations = Column(Integer, default=10000)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -22,7 +22,7 @@ class SimulationResult(Base):
     __tablename__ = "simulation_results"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    run_id = Column(String, ForeignKey("simulation_runs.id"), nullable=False, index=True)
+    run_id = Column(String(36), ForeignKey("simulation_runs.id"), nullable=False, index=True)
     team_code = Column(String(3), nullable=False)
     team_name = Column(String(100), nullable=False)
     round_32 = Column(Float, default=0.0)
@@ -37,8 +37,8 @@ class KnockoutBracket(Base):
     __tablename__ = "knockout_brackets"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    run_id = Column(String, ForeignKey("simulation_runs.id"), nullable=False, index=True)
-    round_name = Column(String, nullable=False)
+    run_id = Column(String(36), ForeignKey("simulation_runs.id"), nullable=False, index=True)
+    round_name = Column(String(50), nullable=False)
     position = Column(Integer, nullable=False)
     team_a_code = Column(String(3), nullable=True)
     team_b_code = Column(String(3), nullable=True)

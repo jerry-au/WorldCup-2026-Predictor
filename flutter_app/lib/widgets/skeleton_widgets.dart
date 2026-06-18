@@ -142,20 +142,20 @@ class SkeletonTeamList extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       itemCount: itemCount,
       itemBuilder: (context, index) {
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
+        return const Card(
+          margin: EdgeInsets.only(bottom: 8),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             child: Row(
               children: [
-                const SkeletonCard(height: 40, width: 40),
-                const SizedBox(width: 12),
+                SkeletonCard(height: 40, width: 40),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SkeletonText(width: 120, height: 18),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       SkeletonText(width: 80, height: 14),
                     ],
                   ),
@@ -164,7 +164,7 @@ class SkeletonTeamList extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     SkeletonText(width: 60, height: 16),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     SkeletonText(width: 50, height: 12),
                   ],
                 ),
@@ -193,14 +193,14 @@ class SkeletonPredictionCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: List.generate(
                 3,
-                (index) => Column(
+                (index) => const Column(
                   children: [
                     SkeletonCard(
                       height: 80,
                       width: 80,
                       margin: EdgeInsets.zero,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     SkeletonText(
                       width: 50,
                       height: 14,

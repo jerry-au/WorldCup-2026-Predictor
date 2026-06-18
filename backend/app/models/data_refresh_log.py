@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, Integer, String, DateTime, Text, Float
 
 from ..database import Base
 
@@ -13,10 +13,11 @@ class DataRefreshLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     source = Column(String(50), nullable=False)
     refresh_type = Column(String(30), nullable=False)
-    status = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False)  # running / success / failed
     started_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
     records_updated = Column(Integer, default=0)
+    progress = Column(Float, default=0.0)  # 0.0 ~ 100.0
     error_message = Column(Text, nullable=True)
     details = Column(Text, nullable=True)
 
@@ -27,13 +28,22 @@ class DataRefreshLog(Base):
             refresh_type=refresh_type,
             status="running",
             started_at=datetime.utcnow(),
+            progress=0.0,
         )
+
+    def update_progress(self, value: float, total: float | None = None):
+        """Update progress. If total provided, calculate percentage."""
+        if total and total > 0:
+            self.progress = min(round(value / total * 100, 1), 100.0)
+        else:
+            self.progress = min(value, 100.0)
 
     def mark_complete(self, records_updated: int = 0, details: str = None):
         self.status = "success"
         self.completed_at = datetime.utcnow()
         self.records_updated = records_updated
         self.details = details
+        self.progress = 100.0
 
     def mark_failed(self, error_message: str):
         self.status = "failed"

@@ -143,12 +143,11 @@ async def precompute_recommendations():
         ttl = timedelta(hours=4) if refresh_mode == RefreshMode.MATCH_DAY else timedelta(hours=8)
 
         scanned = 0
+        total_matches = 0
         for i, team_a in enumerate(teams):
             for j, team_b in enumerate(teams):
                 if j <= i or team_a.group_name != team_b.group_name:
                     continue
-                if scanned >= 12:
-                    break
 
                 pred = engine.predict(team_a, team_b, db=db, match_type="group")
                 odds_data = await odds_client.fetch_h2h_odds(team_a, team_b)
@@ -169,15 +168,19 @@ async def precompute_recommendations():
 
                 _upsert_cache(
                     db, "discrepancies", team_a.code, team_b.code,
-                    json.dumps(betting["discrepancy"], ensure_ascii=False),
+                    json.dumps({
+                        "discrepancy": betting["discrepancy"],
+                        "system_probs": pred["probabilities"],
+                        "market_probs": betting.get("odds_comparison", {}).get("market_implied", {}),
+                    }, ensure_ascii=False),
                     now, now + ttl,
                 )
 
                 scanned += 1
-            if scanned >= 12:
-                break
+                total_matches += 1
 
         db.commit()
+        log.mark_complete(records_updated=total_matches)
         log.mark_complete(records_updated=scanned, details=f"mode={refresh_mode.value}")
     except Exception as e:
         log.mark_failed(str(e))
@@ -208,15 +211,20 @@ async def refresh_odds_data():
 
 
 async def refresh_player_data():
-    """Refresh player data from Football-Data.org."""
+    """Refresh player season summaries from Dongqiudi."""
+    from ..services.dongqiudi_player_season_summaries import scrape_all_player_season_summaries
+
     db = SessionLocal()
-    log = DataRefreshLog.log_start("football-data-org", "player_stats")
+    log = DataRefreshLog.log_start("dongqiudi", "player_season_stats")
     db.add(log)
     db.commit()
 
     try:
-        await football_data_fetcher.refresh_player_data()
-        log.mark_complete()
+        result = scrape_all_player_season_summaries(db)
+        log.mark_complete(
+            records_updated=result.get("records_saved", 0),
+            details=json.dumps(result, ensure_ascii=False),
+        )
         db.commit()
     except Exception as e:
         log.mark_failed(str(e))
@@ -271,19 +279,19 @@ async def refresh_elo_rankings():
         db.close()
 
 
-async def refresh_zafronix_results():
-    """Fetch matches + standings + full tournament from Zafronix (daily at noon)."""
-    from ..tasks.batch_fetch import run_zafronix_batch
+async def refresh_dongqiudi_matches():
+    """Fetch match schedule and results from Dongqiudi (daily at noon)."""
+    from ..services.dongqiudi_match_results import scrape_all_matches
 
     db = SessionLocal()
-    log = DataRefreshLog.log_start("zafronix", "full_sync")
+    log = DataRefreshLog.log_start("dongqiudi", "match_results")
     db.add(log)
     db.commit()
 
     try:
-        result = run_zafronix_batch()
+        result = scrape_all_matches(db)
         log.mark_complete(
-            records_updated=result.get("success", 0),
+            records_updated=result.get("matches_saved", 0),
             details=json.dumps(result, ensure_ascii=False),
         )
         db.commit()
@@ -401,12 +409,12 @@ def start_scheduler():
             name="Refresh Dongqiudi rosters weekly (Monday 3am)",
         )
 
-    # Zafronix full sync: matches + standings + tournament (daily at noon CST = 4am UTC)
+    # Dongqiudi match results sync: schedule + scores (daily at noon CST = 4am UTC)
     scheduler.add_job(
-        refresh_zafronix_results,
+        refresh_dongqiudi_matches,
         CronTrigger(hour=4),
-        id="refresh_zafronix_results",
-        name="Zafronix full sync: matches + standings + tournament (daily noon)",
+        id="refresh_dongqiudi_matches",
+        name="Dongqiudi match results sync: schedule + scores (daily noon)",
     )
 
     # Elo rankings from eloratings.net (daily at 5am UTC = 1pm CST, after matches update)
