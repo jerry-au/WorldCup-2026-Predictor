@@ -1,4 +1,10 @@
-from datetime import UTC, date, datetime, timedelta, time
+from datetime import date, datetime, timedelta, time, timezone
+
+# Python 3.10 兼容：datetime.UTC 是 3.11+ 才有的
+try:
+    from datetime import UTC
+except ImportError:
+    UTC = timezone.utc
 from pathlib import Path
 from sqlalchemy.orm import Session
 from ..core.prediction import PredictionEngine

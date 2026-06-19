@@ -10,7 +10,7 @@ class Team(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     code = Column(String(3), unique=True, index=True, nullable=False)  # MEX, BRA
     name = Column(String(100), nullable=False)
-    iso = Column(String(2))
+    iso = Column(String(10))
     confederation = Column(String(30))
     group_name = Column(String(2), index=True)
     flag_url = Column(String(500))

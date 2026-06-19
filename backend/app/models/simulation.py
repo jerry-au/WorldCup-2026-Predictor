@@ -11,7 +11,7 @@ class SimulationRun(Base):
     __tablename__ = "simulation_runs"
 
     id = Column(String(36), primary_key=True)
-    status = Column(String, nullable=False, default="pending")  # pending|running|completed|failed
+    status = Column(String(20), nullable=False, default="pending")  # pending|running|completed|failed
     total_iterations = Column(Integer, default=10000)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)

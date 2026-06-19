@@ -2,13 +2,20 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConfig {
-  /// Platform-aware base URL:
-  /// - Web / iOS Simulator → localhost:8001
-  /// - Android Emulator    → 10.0.2.2:8001
+  /// 后端 API 地址
+  /// - 生产环境: 远程服务器
+  /// - 本地开发: 127.0.0.1
+  static const String _serverUrl = 'http://43.135.94.112:9000';
+  static const String _localUrl = 'http://127.0.0.1:9000';
+
   static String get baseUrl {
-    if (kIsWeb) return 'http://127.0.0.1:9000';
-    if (Platform.isAndroid) return 'http://10.0.2.2:9000';
-    return 'http://127.0.0.1:9000';
+    // 使用远程服务器
+    return _serverUrl;
+
+    // 如需切换回本地开发，注释上面一行，取消下面注释:
+    // if (kIsWeb) return _localUrl;
+    // if (Platform.isAndroid) return 'http://10.0.2.2:9000';
+    // return _localUrl;
   }
 
   static const String apiPrefix = '/api/v1';
