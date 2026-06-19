@@ -26,11 +26,16 @@ if (flutterVersionName == null) {
 android {
     namespace = "com.worldcup.predictor"
     compileSdk = 34
+    buildToolsVersion = "34.0.0"
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
     }
 
     defaultConfig {
@@ -41,19 +46,16 @@ android {
         versionName "0.1.0"
     }
 
-    signingConfigs {
-        // Debug 签名由 Gradle 自动管理（首次构建时自动生成 debug.keystore）
-        // Release 签名请参考：https://docs.flutter.cn/deployment/android#signing-the-app
-    }
-
     buildTypes {
         debug {
-            debugging true
+            minifyEnabled false
+            shrinkResources false
         }
         release {
             // TODO: 配置 release 签名密钥（生产环境必需）
             signingConfig signingConfigs.debug
             minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

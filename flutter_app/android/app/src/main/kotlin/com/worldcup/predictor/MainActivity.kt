@@ -1,4 +1,4 @@
-package com.worldcup.predictor.flutter_app
+package com.worldcup.predictor
 
 import io.flutter.embedding.android.FlutterActivity
 
