@@ -29,7 +29,6 @@ CODE_MAP = {
     "AR": "ARG",   # Argentina
     "IT": "ITA",   # Italy
     "CR": "CRC",   # Costa Rica
-    "GR": "GRE",   # Greece (not in WC48 usually)
     "IR": "IRN",   # Iran
     "SN": "SEN",   # Senegal
     "MA": "MAR",   # Morocco
@@ -51,76 +50,36 @@ CODE_MAP = {
     "CW": "CUW",   # Curaçao
     "UY": "URU",   # Uruguay
     "BA": "BIH",   # Bosnia and Herzegovina
-    "JM": "JAM",   # Jamaica (not in WC48)
     "PA": "PAN",   # Panama
-    "CR": "CRC",   # Costa Rica
-    "HN": "HON",   # Honduras (not in WC48)
-    "CU": "CUB",   # Cuba (not in WC48)
     "HT": "HAI",   # Haiti
-    "SU": "SUR",   # Suriname (not in WC48)
-    "JM": "JAM",   # Jamaica
     "EC": "ECU",   # Ecuador
     "CO": "COL",   # Colombia
     "PE": "PER",   # Peru
     "PY": "PAR",   # Paraguay
-    "BR": "BRA",   # Brazil
     "CL": "CHI",   # Chile
-    "BO": "BOL",   # Bolivia (not in WC48)
-    "VE": "VEN",   # Venezuela (not in WC48)
     "JP": "JPN",   # Japan
     "KR": "KOR",   # South Korea
-    "CN": "CHN",   # China (not in WC48)
     "AU": "AUS",   # Australia
     "NZ": "NZL",   # New Zealand
     "IQ": "IRQ",   # Iraq
     "SA": "KSA",   # Saudi Arabia
-    "AE": "UAE",   # UAE (not in WC48)
     "JO": "JOR",   # Jordan
-    "SY": "SYR",   # Syria (not in WC48)
-    "LB": "LBN",   # Lebanon (not in WC48)
-    "PS": "PLE",   # Palestine (not in WC48)
     "UZ": "UZB",   # Uzbekistan
-    "IR": "IRN",   # Iran
-    "AF": "AFG",   # Afghanistan (not in WC48)
-    "IN": "IND",   # India (not in WC48)
-    "PK": "PAK",   # Pakistan (not in WC48)
-    "BD": "BAN",   # Bangladesh (not in WC48)
-    "TH": "THA",   # Thailand (not in WC48)
-    "VN": "VIE",   # Vietnam (not in WC48)
-    "ID": "IDN",   # Indonesia (not in WC48)
-    "MY": "MAS",   # Malaysia (not in WC48)
-    "SG": "SGP",   # Singapore (not in WC48)
-    "PH": "PHI",   # Philippines (not in WC48)
-    "HK": "HKG",   # Hong Kong (not in WC48)
-    "TW": "TWN",   # Taiwan (not in WC48)
     "AT": "AUT",   # Austria
     "BE": "BEL",   # Belgium
-    "BG": "BUL",   # Bulgaria (not in WC48)
     "HR": "CRO",   # Croatia
     "CZ": "CZE",   # Czechia
     "DK": "DEN",   # Denmark
-    "FI": "FIN",   # Finland (not in WC48)
     "HU": "HUN",   # Hungary
-    "IS": "ISL",   # Iceland (not in WC48)
     "PL": "POL",   # Poland
-    "RO": "ROU",   # Romania (not in WC48)
     "RU": "RUS",   # Russia
     "RS": "SRB",   # Serbia
     "SK": "SVK",   # Slovakia
-    "SI": "SVN",   # Slovenia (not in WC48)
     "SE": "SWE",   # Sweden
     "CH": "SUI",   # Switzerland
     "TR": "TUR",   # Turkey
     "UA": "UKR",   # Ukraine
-    "AL": "ALB",   # Albania (not in WC48)
-    "BLR": "BLR",  # Belarus (not in WC48)
-    "GEO": "GEO",  # Georgia (not in WC48)
-    "KAZ": "KZK",  # Kazakhstan (not in WC48)
-    "MDA": "MDA",  # Moldova (not in WC48)
-    "MKD": "MKD",  # North Macedonia (not in WC48)
     "SCO": "SCO",  # Scotland
-    "WAL": "WAL",  # Wales (not in WC48)
-    "NIR": "NIR",  # Northern Ireland (not in WC48)
     "BIH": "BIH",  # Bosnia and Herzegovina
     "SQ": "SCO",   # Scotland (eloratings uses SQ for Scotland)
 }

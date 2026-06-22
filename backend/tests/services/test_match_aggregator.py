@@ -1,22 +1,12 @@
 from datetime import date, datetime
 from types import SimpleNamespace
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.database import Base
 from app.models.dongqiudi_match import DongqiudiMatch
 from app.services.match_aggregator import build_today_matches_response, _query_matches_for_date
 
 
-def make_session():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
-    return sessionmaker(autocommit=False, autoflush=False, bind=engine)()
-
-
-def test_query_matches_for_date_uses_48_hour_window_and_excludes_completed():
-    db = make_session()
+def test_query_matches_for_date_uses_48_hour_window_and_excludes_completed(db_session):
+    db = db_session
     db.add_all([
         DongqiudiMatch(
             match_id="before-window",
@@ -65,8 +55,8 @@ def test_query_matches_for_date_uses_48_hour_window_and_excludes_completed():
     assert [match.match_id for match in matches] == ["at-start", "live-in-window"]
 
 
-def test_query_matches_for_date_excludes_matches_past_estimated_finish_time():
-    db = make_session()
+def test_query_matches_for_date_excludes_matches_past_estimated_finish_time(db_session):
+    db = db_session
     db.add_all([
         DongqiudiMatch(
             match_id="already-ended-by-time",
@@ -179,8 +169,12 @@ def test_build_today_matches_response_with_prediction_and_odds(monkeypatch):
 
     monkeypatch.setattr("app.services.match_aggregator._query_matches_for_date", lambda db, target_date: [match])
     monkeypatch.setattr(
+        "app.services.match_aggregator._batch_preload_teams_and_odds",
+        lambda db, matches: ({"BRA": team_a, "FRA": team_b}, {("BRA", "FRA"): odds}),
+    )
+    monkeypatch.setattr(
         "app.services.match_aggregator.engine.predict",
-        lambda a, b, match_type: {
+        lambda a, b, db, match_type: {
             "probabilities": {"win": 0.42, "draw": 0.28, "lose": 0.30},
             "system_confidence": 0.75,
         },

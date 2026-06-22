@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime
 
@@ -18,6 +19,8 @@ from ..core.simulation import MonteCarloEngine, TeamInGroup, CompletedMatch
 from ..core.elo import composite_rating, get_team_dongqiudi_strength, get_team_market_value
 from ..services.odds import odds_client
 from ..services.recommendation import recommendation_engine
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/predict", tags=["predict"])
 engine = PredictionEngine()
@@ -43,6 +46,7 @@ async def predict_match(body: PredictRequest, db: Session = Depends(get_db)):
     try:
         odds_data = await odds_client.fetch_h2h_odds(team_a, team_b)
     except Exception:
+        logger.warning("Failed to fetch odds for %s vs %s", team_a.code, team_b.code, exc_info=True)
         odds_data = None
 
     betting = recommendation_engine.analyze(
@@ -64,6 +68,17 @@ def start_tournament_simulation(
     db: Session = Depends(get_db),
 ):
     """Start Monte Carlo tournament simulation (background task)."""
+    team_count = db.query(Team).count()
+    if team_count < 48:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": 1004,
+                "message": f"Insufficient team data: found {team_count} teams, need at least 48. "
+                           "Please run seed data import first.",
+            },
+        )
+
     run_id = str(uuid.uuid4())
     run = SimulationRun(id=run_id, status="running")
     db.add(run)
@@ -109,7 +124,7 @@ def _load_completed_matches(db: Session) -> list[CompletedMatch]:
                 ))
             return matches
     except Exception:
-        pass
+        logger.warning("Failed to load completed matches from Dongqiudi", exc_info=True)
 
     # Fall back to Zafronix
     try:
@@ -134,7 +149,7 @@ def _load_completed_matches(db: Session) -> list[CompletedMatch]:
                     group_name=m.group_name or "",
                 ))
     except Exception:
-        pass
+        logger.warning("Failed to load completed matches from Zafronix", exc_info=True)
 
     return matches
 

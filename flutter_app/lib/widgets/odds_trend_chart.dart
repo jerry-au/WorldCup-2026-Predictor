@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/odds_history.dart';
-import '../../models/today_match.dart';
+import '../../models/match_common.dart';
 import '../../services/providers.dart';
 
 /// 赔率趋势图 - 展示历史赔率变化（AlertDialog 形式，与当日赛事页一致）
@@ -14,6 +14,7 @@ class OddsTrendChart extends StatelessWidget {
   final String awayCode;
   final String homeTeamName;
   final String awayTeamName;
+  final MatchOddsSummary? fallbackOdds;
 
   const OddsTrendChart({
     super.key,
@@ -22,6 +23,7 @@ class OddsTrendChart extends StatelessWidget {
     required this.awayCode,
     required this.homeTeamName,
     required this.awayTeamName,
+    this.fallbackOdds,
   });
 
   /// 显示赔率趋势图的 Dialog
@@ -31,6 +33,7 @@ class OddsTrendChart extends StatelessWidget {
     required String awayCode,
     required String homeTeamName,
     required String awayTeamName,
+    MatchOddsSummary? fallbackOdds,
   }) {
     showDialog<void>(
       context: context,
@@ -40,6 +43,7 @@ class OddsTrendChart extends StatelessWidget {
         awayCode: awayCode,
         homeTeamName: homeTeamName,
         awayTeamName: awayTeamName,
+        fallbackOdds: fallbackOdds,
       ),
     );
   }
@@ -52,6 +56,7 @@ class OddsTrendChart extends StatelessWidget {
       awayCode: awayCode,
       homeTeamName: homeTeamName,
       awayTeamName: awayTeamName,
+      fallbackOdds: fallbackOdds,
     );
   }
 }
@@ -62,6 +67,7 @@ class _OddsHistoryDialog extends ConsumerWidget {
   final String awayCode;
   final String homeTeamName;
   final String awayTeamName;
+  final MatchOddsSummary? fallbackOdds;
 
   const _OddsHistoryDialog({
     required this.matchId,
@@ -69,6 +75,7 @@ class _OddsHistoryDialog extends ConsumerWidget {
     required this.awayCode,
     required this.homeTeamName,
     required this.awayTeamName,
+    this.fallbackOdds,
   });
 
   @override
@@ -93,7 +100,7 @@ class _OddsHistoryDialog extends ConsumerWidget {
         } else {
           final history = OddsHistoryResponse.fromJson(
               snapshot.data as Map<String, dynamic>);
-          content = _OddsHistoryContent(history: history);
+          content = _OddsHistoryContent(history: history, fallbackOdds: fallbackOdds);
         }
 
         return AlertDialog(
@@ -113,12 +120,13 @@ class _OddsHistoryDialog extends ConsumerWidget {
 
 class _OddsHistoryContent extends StatelessWidget {
   final OddsHistoryResponse history;
+  final MatchOddsSummary? fallbackOdds;
 
-  const _OddsHistoryContent({required this.history});
+  const _OddsHistoryContent({required this.history, this.fallbackOdds});
 
   @override
   Widget build(BuildContext context) {
-    final currentOdds = history.latestOdds;
+    final currentOdds = history.latestOdds ?? fallbackOdds;
     final latestTime = currentOdds?.updatedAt ??
         (history.points.isNotEmpty ? history.points.last.recordedAt : null);
 

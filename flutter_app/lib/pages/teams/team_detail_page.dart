@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../config/api_config.dart';
 import '../../models/team.dart';
 import '../../providers/teams_provider.dart';
 import '../../widgets/common_widgets.dart';
@@ -184,25 +186,24 @@ class _TeamDetailContent extends StatelessWidget {
 
   /// 将图片路径转为完整 URL：本地路径走 static，外网 URL 走后端代理
   String _imagePathToUrl(String path) {
+    final base = ApiConfig.baseUrl;
     if (path.startsWith('http')) {
-      // 外部域名图片通过后端代理解决 CORS
-      return 'http://127.0.0.1:9000/api/v1/proxy-image?${Uri.encodeComponent('url')}=${Uri.encodeComponent(path)}';
+      return '$base/api/v1/proxy-image?${Uri.encodeComponent('url')}=${Uri.encodeComponent(path)}';
     }
-    return 'http://127.0.0.1:9000$path';
+    return '$base$path';
   }
 
   Widget _playerAvatar(Player player, {double radius = 20}) {
     if (player.photoUrl != null && player.photoUrl!.isNotEmpty) {
       final url = _imagePathToUrl(player.photoUrl!);
       return ClipOval(
-        child: Image.network(
-          url,
+        child: CachedNetworkImage(
+          imageUrl: url,
           width: radius * 2,
           height: radius * 2,
           fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => _fallbackAvatar(player, radius),
-          loadingBuilder: (c, child, progress) =>
-              progress == null ? child : _fallbackAvatar(player, radius),
+          errorWidget: (c, e, s) => _fallbackAvatar(player, radius),
+          placeholder: (c, s) => _fallbackAvatar(player, radius),
         ),
       );
     }

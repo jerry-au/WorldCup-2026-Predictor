@@ -47,8 +47,9 @@ def get_match_bucket(match_date: date, today: Optional[date] = None) -> MatchBuc
 def is_matchday(today: Optional[date] = None) -> bool:
     if today is None:
         today = date.today()
-    start = date(2026, 6, 11)
-    end = date(2026, 7, 19)
+    from ..config import settings
+    start = date.fromisoformat(settings.tournament_start)
+    end = date.fromisoformat(settings.tournament_end)
     return start <= today <= end
 
 
@@ -179,9 +180,8 @@ async def precompute_recommendations():
                 scanned += 1
                 total_matches += 1
 
+        log.mark_complete(records_updated=total_matches, details=f"mode={refresh_mode.value}")
         db.commit()
-        log.mark_complete(records_updated=total_matches)
-        log.mark_complete(records_updated=scanned, details=f"mode={refresh_mode.value}")
     except Exception as e:
         log.mark_failed(str(e))
         db.commit()

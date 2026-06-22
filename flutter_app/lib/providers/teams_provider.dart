@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/team.dart';
 import '../services/providers.dart';
 
-final teamsListProvider = FutureProvider.family<List<TeamSummary>, TeamsFilter>((ref, filter) async {
+final teamsListProvider = FutureProvider.autoDispose.family<List<TeamSummary>, TeamsFilter>((ref, filter) async {
   final api = ref.read(apiServiceProvider);
   final data = await api.getTeams(
     confederation: filter.confederation,
@@ -46,7 +46,7 @@ class TeamsFilter {
   int get hashCode => Object.hash(confederation, group, sortBy);
 }
 
-final teamDetailProvider = FutureProvider.family<TeamDetail, String>((ref, code) async {
+final teamDetailProvider = FutureProvider.autoDispose.family<TeamDetail, String>((ref, code) async {
   final api = ref.read(apiServiceProvider);
   final data = await api.getTeamDetail(code);
   return TeamDetail.fromJson(data as Map<String, dynamic>);

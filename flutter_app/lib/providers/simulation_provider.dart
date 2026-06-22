@@ -38,8 +38,10 @@ class SimulationNotifier extends StateNotifier<SimulationState> {
 
   final ApiService _api;
   Timer? _pollTimer;
+  int _consecutiveFailures = 0;
 
   Future<void> startSimulation() async {
+    _consecutiveFailures = 0;
     state = state.copyWith(isRunning: true, progress: 0.0, result: null, error: null);
     try {
       final taskData = await _api.startTournamentSimulation();
@@ -55,6 +57,7 @@ class SimulationNotifier extends StateNotifier<SimulationState> {
     _pollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
       try {
         final data = await _api.getTaskProgress(taskId);
+        _consecutiveFailures = 0;
         final status = data['status'] as String;
         final progress = (data['progress'] as num?)?.toDouble() ?? 0;
 
@@ -69,7 +72,14 @@ class SimulationNotifier extends StateNotifier<SimulationState> {
           state = state.copyWith(isRunning: true, progress: progress);
         }
       } catch (_) {
-        // Transient error — keep polling
+        _consecutiveFailures++;
+        if (_consecutiveFailures >= 10) {
+          _pollTimer?.cancel();
+          state = state.copyWith(
+            isRunning: false,
+            error: '模拟超时，请检查网络后重试',
+          );
+        }
       }
     });
   }
@@ -87,6 +97,6 @@ class SimulationNotifier extends StateNotifier<SimulationState> {
 }
 
 final simulationProvider =
-    StateNotifierProvider<SimulationNotifier, SimulationState>((ref) {
+    StateNotifierProvider.autoDispose<SimulationNotifier, SimulationState>((ref) {
   return SimulationNotifier(ref.read(apiServiceProvider));
 });

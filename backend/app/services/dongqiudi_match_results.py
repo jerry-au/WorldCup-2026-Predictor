@@ -7,6 +7,7 @@ Uses the same session/team-mapping infrastructure as the national roster scraper
 from __future__ import annotations
 
 import json
+import logging
 import time
 from datetime import datetime
 from typing import Any
@@ -23,6 +24,8 @@ from ..services.dongqiudi_national_roster import (
     BASE_URL,
     REQUEST_DELAY,
 )
+
+logger = logging.getLogger(__name__)
 
 SCHEDULE_URL = "https://pc.dongqiudi.com/data?cid=61&tab=schedule"
 # Reverse mapping: Chinese code -> Dongqiudi team id
@@ -141,7 +144,7 @@ def fetch_schedule_data(
             if isinstance(data, dict) and data.get("code") == 0:
                 return data.get("data", []) or []
     except Exception:
-        pass
+        logger.warning("Failed to fetch schedule data from Dongqiudi API", exc_info=True)
 
     # Fallback: return empty list (HTML parsing could be added if needed)
     return []
@@ -228,6 +231,7 @@ def parse_match_from_api(
             "raw_data": _json_dumps(item),
         }
     except Exception:
+        logger.warning("Failed to parse match item from API", exc_info=True)
         return None
 
 

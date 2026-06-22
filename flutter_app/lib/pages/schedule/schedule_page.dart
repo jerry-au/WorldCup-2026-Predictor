@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/schedule_match.dart';
 import '../../providers/schedule_provider.dart';
 import '../../widgets/animated_widgets.dart';
@@ -27,7 +28,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   final List<ScheduleMatch> _allMatches = [];
   int _totalMatches = 0;
   int _totalPages = 1;
-  bool _hasInitialized = false;
+  final Set<int> _loadedPages = {};
 
   static const _stageOptions = [
     DropdownMenuItem(value: null, child: Text('全部阶段')),
@@ -52,7 +53,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
         _allMatches.clear();
         _totalMatches = 0;
         _totalPages = 1;
-        _hasInitialized = false;
+        _loadedPages.clear();
       });
     }
   }
@@ -131,19 +132,18 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
             currentPage: _currentPage,
             onLoadMore: _loadMore,
             onDataLoaded: (data) {
-              // 只在首次加载或翻页时更新数据（不触发 setState 避免循环）
-              if (!_hasInitialized || data.page != 1) {
-                _hasInitialized = true;
-                if (mounted) {
-                  setState(() {
-                    if (data.page == 1) {
-                      _allMatches.clear();
-                    }
-                    _allMatches.addAll(data.matches);
-                    _totalMatches = data.total;
-                    _totalPages = data.totalPages;
-                  });
-                }
+              // 跳过已加载的页，避免每次 rebuild 重复追加数据导致死循环
+              if (_loadedPages.contains(data.page)) return;
+              _loadedPages.add(data.page);
+              if (mounted) {
+                setState(() {
+                  if (data.page == 1) {
+                    _allMatches.clear();
+                  }
+                  _allMatches.addAll(data.matches);
+                  _totalMatches = data.total;
+                  _totalPages = data.totalPages;
+                });
               }
             },
           ),
@@ -180,7 +180,7 @@ class _ScheduleMatchList extends ConsumerWidget {
     return matchesAsync.when(
       loading: () => allMatches.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : _buildListView(allMatches, null),
+          : _buildListView(allMatches, null, ref),
       error: (err, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -203,12 +203,12 @@ class _ScheduleMatchList extends ConsumerWidget {
         });
 
         final displayMatches = currentPage == 1 ? data.matches : allMatches;
-        return _buildListView(displayMatches, data);
+        return _buildListView(displayMatches, data, ref);
       },
     );
   }
 
-  Widget _buildListView(List<ScheduleMatch> matches, AllMatchesResponse? data) {
+  Widget _buildListView(List<ScheduleMatch> matches, AllMatchesResponse? data, WidgetRef ref) {
     if (matches.isEmpty) {
       return Center(
         child: Column(
@@ -226,7 +226,7 @@ class _ScheduleMatchList extends ConsumerWidget {
 
     return RefreshIndicator(
       onRefresh: () async {
-        // 通过回调通知父组件重置分页
+        ref.invalidate(allMatchesProvider(filter));
       },
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -313,7 +313,7 @@ class _ScheduleMatchCard extends StatelessWidget {
                   const Spacer(),
                   // 时间
                   Text(
-                    _formatTime(match.commenceTime ?? DateTime.now()),
+                    _formatMatchTime(match),
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   ),
                 ],
@@ -329,12 +329,13 @@ class _ScheduleMatchCard extends StatelessWidget {
                     child: Column(
                       children: [
                         ClipOval(
-                          child: Image.network(
-                            match.home.flagUrl ?? '',
+                          child: CachedNetworkImage(
+                            imageUrl: match.home.flagUrl ?? '',
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            errorWidget: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            placeholder: (_, __) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -389,12 +390,13 @@ class _ScheduleMatchCard extends StatelessWidget {
                     child: Column(
                       children: [
                         ClipOval(
-                          child: Image.network(
-                            match.away.flagUrl ?? '',
+                          child: CachedNetworkImage(
+                            imageUrl: match.away.flagUrl ?? '',
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            errorWidget: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            placeholder: (_, __) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -514,7 +516,17 @@ class _ScheduleMatchCard extends StatelessWidget {
     }
   }
 
-  String _formatTime(DateTime time) {
+  String _formatMatchTime(ScheduleMatch match) {
+    final time = match.commenceTime ?? DateTime.now();
+
+    // 已结束 / 进行中的比赛显示实际日期时间
+    if (match.status == MatchStatus.completed || match.status == MatchStatus.live) {
+      final h = time.hour.toString().padLeft(2, '0');
+      final m = time.minute.toString().padLeft(2, '0');
+      return '${time.month}/${time.day} $h:$m';
+    }
+
+    // 未开始的比赛显示相对时间
     final now = DateTime.now().toUtc();
     final diff = time.difference(now);
 
