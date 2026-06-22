@@ -125,6 +125,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
 
         Expanded(
           child: _ScheduleMatchList(
+            key: ValueKey('${_selectedStage ?? ''}_${_selectedStatus ?? ''}'),
             filter: filter,
             allMatches: _allMatches,
             totalMatches: _totalMatches,
@@ -153,8 +154,8 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   }
 }
 
-/// 比赛列表组件 - 独立组件避免无限循环
-class _ScheduleMatchList extends ConsumerWidget {
+/// 比赛列表组件 - 独立组件避免无限循环，支持自动滚动到最近未开始比赛
+class _ScheduleMatchList extends ConsumerStatefulWidget {
   final ScheduleFilter filter;
   final List<ScheduleMatch> allMatches;
   final int totalMatches;
@@ -164,6 +165,7 @@ class _ScheduleMatchList extends ConsumerWidget {
   final Function(AllMatchesResponse) onDataLoaded;
 
   const _ScheduleMatchList({
+    super.key,
     required this.filter,
     required this.allMatches,
     required this.totalMatches,
@@ -174,13 +176,43 @@ class _ScheduleMatchList extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final matchesAsync = ref.watch(allMatchesProvider(filter));
+  ConsumerState<_ScheduleMatchList> createState() => _ScheduleMatchListState();
+}
+
+class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
+  final ScrollController _scrollController = ScrollController();
+  bool _hasScrolledToUpcoming = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToFirstUpcoming(List<ScheduleMatch> matches) {
+    if (_hasScrolledToUpcoming || matches.isEmpty) return;
+    final index = matches.indexWhere((m) => m.status != MatchStatus.completed);
+    if (index <= 0) return;
+    _hasScrolledToUpcoming = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          index * 100.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matchesAsync = ref.watch(allMatchesProvider(widget.filter));
 
     return matchesAsync.when(
-      loading: () => allMatches.isEmpty
+      loading: () => widget.allMatches.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : _buildListView(allMatches, null, ref),
+          : _buildListView(widget.allMatches, null, ref),
       error: (err, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -190,7 +222,7 @@ class _ScheduleMatchList extends ConsumerWidget {
             Text('加载失败', style: TextStyle(color: Colors.grey.shade600)),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: () => ref.invalidate(allMatchesProvider(filter)),
+              onPressed: () => ref.invalidate(allMatchesProvider(widget.filter)),
               child: const Text('重试'),
             ),
           ],
@@ -199,10 +231,16 @@ class _ScheduleMatchList extends ConsumerWidget {
       data: (data) {
         // 通知父组件数据已加载（延迟到下一帧避免循环）
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          onDataLoaded(data);
+          widget.onDataLoaded(data);
         });
 
-        final displayMatches = currentPage == 1 ? data.matches : allMatches;
+        final displayMatches = widget.currentPage == 1 ? data.matches : widget.allMatches;
+
+        // 首次加载完成后滚动到最近未开始比赛
+        if (widget.currentPage == 1 && !_hasScrolledToUpcoming) {
+          _scrollToFirstUpcoming(displayMatches);
+        }
+
         return _buildListView(displayMatches, data, ref);
       },
     );
@@ -226,9 +264,10 @@ class _ScheduleMatchList extends ConsumerWidget {
 
     return RefreshIndicator(
       onRefresh: () async {
-        ref.invalidate(allMatchesProvider(filter));
+        ref.invalidate(allMatchesProvider(widget.filter));
       },
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         itemCount: matches.length + (hasMore ? 1 : 0),
         itemBuilder: (context, index) {
@@ -236,9 +275,9 @@ class _ScheduleMatchList extends ConsumerWidget {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: OutlinedButton.icon(
-                onPressed: onLoadMore,
+                onPressed: widget.onLoadMore,
                 icon: const Icon(Icons.arrow_downward, size: 18),
-                label: Text('加载更多 (${totalMatches - matches.length} 场)'),
+                label: Text('加载更多 (${widget.totalMatches - matches.length} 场)'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
