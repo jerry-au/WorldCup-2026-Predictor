@@ -148,6 +148,50 @@ def test_motivation_factors_apply_top_spot_boost_and_caps():
     np.testing.assert_array_equal(capped, np.array([0.80, 1.0, 1.15]))
 
 
+def test_mutual_draw_scenario_detects_safe_round_three_draw():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    points = np.array([
+        [4, 4, 0, 0],
+        [4, 4, 0, 0],
+        [4, 4, 0, 0],
+    ], dtype=np.int32)
+    gd_arr = np.array([
+        [2, 1, -1, -2],
+        [2, 1, -1, -2],
+        [2, 1, -1, -2],
+    ], dtype=np.int32)
+
+    mask = engine._detect_mutual_draw_scenario(points, gd_arr, round_idx=2, match_pair=(0, 1))
+
+    np.testing.assert_array_equal(mask, np.array([True, True, True]))
+
+
+def test_mutual_draw_boost_converts_low_score_one_goal_wins():
+    engine = MonteCarloEngine(num_iterations=5, seed=42)
+    g_i = np.array([1, 2, 3, 0, 2], dtype=np.int32)
+    g_j = np.array([0, 1, 0, 1, 2], dtype=np.int32)
+    mask = np.array([True, True, True, True, False])
+
+    adjusted_i, adjusted_j = engine._apply_mutual_draw_boost(g_i, g_j, mask, boost=1.5)
+
+    assert (adjusted_i == adjusted_j).sum() > (g_i == g_j).sum()
+    assert adjusted_i[2] == 3
+    assert adjusted_j[2] == 0
+
+
+def test_honor_match_randomness_changes_lambda_for_masked_rows():
+    engine = MonteCarloEngine(num_iterations=4, seed=42)
+    lambda_i = np.ones(4)
+    lambda_j = np.ones(4)
+    mask = np.array([True, True, False, False])
+
+    adjusted_i, adjusted_j = engine._apply_honor_match_randomness(lambda_i, lambda_j, mask, 1.10)
+
+    assert not np.array_equal(adjusted_i[:2], lambda_i[:2])
+    np.testing.assert_array_equal(adjusted_i[2:], lambda_i[2:])
+    np.testing.assert_array_equal(adjusted_j[2:], lambda_j[2:])
+
+
 def test_group_stage_ranking():
     """Group stage produces correct rankings based on points > GD > GF."""
     groups = {

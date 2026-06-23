@@ -233,6 +233,62 @@ class MonteCarloEngine:
         factors = np.where(~qualified & ~eliminated & top_race, factors * cfg.top_spot_motivation_multiplier, factors)
         return self._apply_factor_caps(factors, cfg.motivation_min_cap, cfg.motivation_max_cap)
 
+    def _detect_mutual_draw_scenario(
+        self,
+        points: np.ndarray,
+        gd_arr: np.ndarray,
+        round_idx: int,
+        match_pair: tuple[int, int],
+    ) -> np.ndarray:
+        if round_idx != 2:
+            return np.zeros(self.N, dtype=bool)
+        i, j = match_pair
+        after_draw = points.copy()
+        after_draw[:, i] += 1
+        after_draw[:, j] += 1
+        rank_score = after_draw.astype(np.int64) * 1_000 + gd_arr.astype(np.int64)
+        order = np.argsort(-rank_score, axis=1)
+        pos_i = np.argmax(order == i, axis=1)
+        pos_j = np.argmax(order == j, axis=1)
+        return (pos_i <= 1) & (pos_j <= 1)
+
+    def _apply_mutual_draw_boost(
+        self,
+        g_i: np.ndarray,
+        g_j: np.ndarray,
+        mask: np.ndarray,
+        boost: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        adjusted_i = g_i.copy()
+        adjusted_j = g_j.copy()
+        one_goal = np.abs(g_i - g_j) == 1
+        low_score = np.maximum(g_i, g_j) <= 2
+        candidates = mask & one_goal & low_score
+        if candidates.any():
+            probability = min(0.75, max(0.0, (boost - 1.0) * 1.5))
+            selected = candidates & (self.rng.random(g_i.shape[0]) < probability)
+            draw_score = np.maximum(g_i[selected], g_j[selected])
+            adjusted_i[selected] = draw_score
+            adjusted_j[selected] = draw_score
+        return adjusted_i, adjusted_j
+
+    def _apply_honor_match_randomness(
+        self,
+        lambda_i: np.ndarray,
+        lambda_j: np.ndarray,
+        mask: np.ndarray,
+        multiplier: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        adjusted_i = lambda_i.copy()
+        adjusted_j = lambda_j.copy()
+        if mask.any():
+            spread = max(0.0, multiplier - 1.0)
+            noise_i = self.rng.uniform(1.0 - spread, 1.0 + spread, int(mask.sum()))
+            noise_j = self.rng.uniform(1.0 - spread, 1.0 + spread, int(mask.sum()))
+            adjusted_i[mask] *= noise_i
+            adjusted_j[mask] *= noise_j
+        return adjusted_i, adjusted_j
+
     # ── Public API ────────────────────────────────────────────────
 
     def simulate(
@@ -393,11 +449,22 @@ class MonteCarloEngine:
                         avg_goals=self._avg_goals,
                         delta=self._delta,
                     )
+                    active_parameters = parameters or SimulationParameters()
                     factor_i, factor_j = self._calculate_motivation_factors(
-                        points, gd_arr, gf_arr, round_idx, (i, j), parameters or SimulationParameters()
+                        points, gd_arr, gf_arr, round_idx, (i, j), active_parameters
                     )
-                    g_i = self.rng.poisson(λ_i * factor_i)
-                    g_j = self.rng.poisson(λ_j * factor_j)
+                    lambda_i = np.full(self.N, λ_i, dtype=np.float64) * factor_i
+                    lambda_j = np.full(self.N, λ_j, dtype=np.float64) * factor_j
+                    honor_mask = (round_idx == 2) & (points[:, i] <= 1) & (points[:, j] <= 1)
+                    lambda_i, lambda_j = self._apply_honor_match_randomness(
+                        lambda_i, lambda_j, honor_mask, active_parameters.motivation.honor_match_randomness_multiplier
+                    )
+                    g_i = self.rng.poisson(lambda_i)
+                    g_j = self.rng.poisson(lambda_j)
+                    mutual_draw_mask = self._detect_mutual_draw_scenario(points, gd_arr, round_idx, (i, j))
+                    g_i, g_j = self._apply_mutual_draw_boost(
+                        g_i, g_j, mutual_draw_mask, active_parameters.collusion.mutual_draw_boost
+                    )
 
                     win_i = (g_i > g_j).astype(np.int32)
                     win_j = (g_j > g_i).astype(np.int32)
