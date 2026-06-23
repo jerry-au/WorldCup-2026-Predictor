@@ -23,6 +23,46 @@ class TeamInGroup:
 
 
 @dataclass
+class MotivationConfig:
+    qualified_rotation_multiplier: float = 1.0
+    eliminated_morale_multiplier: float = 1.0
+    top_spot_motivation_multiplier: float = 1.0
+    honor_match_randomness_multiplier: float = 1.0
+    motivation_min_cap: float = 1.0
+    motivation_max_cap: float = 1.0
+
+
+@dataclass
+class CollusionConfig:
+    mutual_draw_boost: float = 1.0
+    opponent_selection_loss_multiplier: float = 1.0
+
+
+@dataclass
+class EnvironmentConfig:
+    home_advantage_multiplier: float = 1.0
+    travel_fatigue_multiplier: float = 1.0
+    weather_adaptation_multiplier: float = 1.0
+    jet_lag_multiplier: float = 1.0
+    context_min_cap: float = 1.0
+    context_max_cap: float = 1.0
+
+
+@dataclass
+class DisciplineConfig:
+    yellow_card_caution_multiplier: float = 1.0
+    key_player_suspension_multiplier: float = 1.0
+
+
+@dataclass
+class SimulationParameters:
+    motivation: MotivationConfig = field(default_factory=MotivationConfig)
+    collusion: CollusionConfig = field(default_factory=CollusionConfig)
+    environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
+    discipline: DisciplineConfig = field(default_factory=DisciplineConfig)
+
+
+@dataclass
 class CompletedMatch:
     """A completed group-stage match with known final score.
 
@@ -72,6 +112,11 @@ class MonteCarloEngine:
     """
 
     GROUP_MATCHES = [(0, 1), (2, 3), (0, 2), (1, 3), (0, 3), (1, 2)]
+    GROUP_ROUNDS = [
+        [(0, 1), (2, 3)],
+        [(0, 2), (1, 3)],
+        [(0, 3), (1, 2)],
+    ]
     GROUP_NAMES = [chr(ord('A') + i) for i in range(12)]
 
     # Bracket structure for Round of 32.
@@ -120,6 +165,7 @@ class MonteCarloEngine:
 
     # Lambda for home advantage multiplier in knockout
     HOME_ADV = 1.08
+    HOST_TEAM_CODES = {"USA", "MEX", "CAN"}
 
     def __init__(self, num_iterations: int = 10_000, seed: int = 42):
         self.N = num_iterations
@@ -128,6 +174,200 @@ class MonteCarloEngine:
         self._avg_goals = 2.5
         self._delta = 0.20
 
+    def _parameters_from_dict(self, data: dict | None) -> SimulationParameters:
+        if not data:
+            return SimulationParameters()
+        return SimulationParameters(
+            motivation=MotivationConfig(**data.get("motivation", {})),
+            collusion=CollusionConfig(**data.get("collusion", {})),
+            environment=EnvironmentConfig(**data.get("environment", {})),
+            discipline=DisciplineConfig(**data.get("discipline", {})),
+        )
+
+    def _apply_factor_caps(
+        self,
+        factors: np.ndarray,
+        min_cap: float,
+        max_cap: float,
+    ) -> np.ndarray:
+        return np.clip(factors, min_cap, max_cap)
+
+    def _calculate_motivation_factors(
+        self,
+        points: np.ndarray,
+        gd_arr: np.ndarray,
+        gf_arr: np.ndarray,
+        round_idx: int,
+        match_pair: tuple[int, int],
+        parameters: SimulationParameters,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        i, j = match_pair
+        factor_i = self._motivation_factor_for_team(points, gd_arr, round_idx, i, parameters)
+        factor_j = self._motivation_factor_for_team(points, gd_arr, round_idx, j, parameters)
+        return factor_i, factor_j
+
+    def _motivation_factor_for_team(
+        self,
+        points: np.ndarray,
+        gd_arr: np.ndarray,
+        round_idx: int,
+        team_pos: int,
+        parameters: SimulationParameters,
+    ) -> np.ndarray:
+        cfg = parameters.motivation
+        factors = np.ones(self.N, dtype=np.float64)
+        if round_idx < 1:
+            return factors
+
+        team_points = points[:, team_pos]
+        team_gd = gd_arr[:, team_pos]
+        active = round_idx >= 2
+        qualified = active & (team_points >= 6)
+        eliminated = active & (team_points == 0) & (team_gd <= -3)
+
+        rank_score = points.astype(np.int64) * 1_000 + gd_arr.astype(np.int64)
+        sorted_scores = np.sort(rank_score, axis=1)[:, ::-1]
+        top_race = active & (team_points >= 3) & ((sorted_scores[:, 0] - sorted_scores[:, 2]) <= 3_000)
+
+        factors = np.where(qualified, factors * cfg.qualified_rotation_multiplier, factors)
+        factors = np.where(eliminated, factors * cfg.eliminated_morale_multiplier, factors)
+        factors = np.where(~qualified & ~eliminated & top_race, factors * cfg.top_spot_motivation_multiplier, factors)
+        return self._apply_factor_caps(factors, cfg.motivation_min_cap, cfg.motivation_max_cap)
+
+    def _detect_mutual_draw_scenario(
+        self,
+        points: np.ndarray,
+        gd_arr: np.ndarray,
+        round_idx: int,
+        match_pair: tuple[int, int],
+    ) -> np.ndarray:
+        if round_idx != 2:
+            return np.zeros(self.N, dtype=bool)
+        i, j = match_pair
+        after_draw = points.copy()
+        after_draw[:, i] += 1
+        after_draw[:, j] += 1
+        rank_score = after_draw.astype(np.int64) * 1_000 + gd_arr.astype(np.int64)
+        order = np.argsort(-rank_score, axis=1)
+        pos_i = np.argmax(order == i, axis=1)
+        pos_j = np.argmax(order == j, axis=1)
+        return (pos_i <= 1) & (pos_j <= 1)
+
+    def _apply_mutual_draw_boost(
+        self,
+        g_i: np.ndarray,
+        g_j: np.ndarray,
+        mask: np.ndarray,
+        boost: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        adjusted_i = g_i.copy()
+        adjusted_j = g_j.copy()
+        one_goal = np.abs(g_i - g_j) == 1
+        low_score = np.maximum(g_i, g_j) <= 2
+        candidates = mask & one_goal & low_score
+        if candidates.any():
+            probability = min(0.75, max(0.0, (boost - 1.0) * 1.5))
+            selected = candidates & (self.rng.random(g_i.shape[0]) < probability)
+            draw_score = np.maximum(g_i[selected], g_j[selected])
+            adjusted_i[selected] = draw_score
+            adjusted_j[selected] = draw_score
+        return adjusted_i, adjusted_j
+
+    def _apply_honor_match_randomness(
+        self,
+        lambda_i: np.ndarray,
+        lambda_j: np.ndarray,
+        mask: np.ndarray,
+        multiplier: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        adjusted_i = lambda_i.copy()
+        adjusted_j = lambda_j.copy()
+        if mask.any():
+            spread = max(0.0, multiplier - 1.0)
+            noise_i = self.rng.uniform(1.0 - spread, 1.0 + spread, int(mask.sum()))
+            noise_j = self.rng.uniform(1.0 - spread, 1.0 + spread, int(mask.sum()))
+            adjusted_i[mask] *= noise_i
+            adjusted_j[mask] *= noise_j
+        return adjusted_i, adjusted_j
+
+    def _init_discipline_state(self) -> tuple[np.ndarray, np.ndarray]:
+        return (
+            np.zeros((self.N, 4), dtype=bool),
+            np.zeros((self.N, 4), dtype=bool),
+        )
+
+    def _calculate_context_factors(
+        self,
+        team_codes: list[str],
+        match_pair: tuple[int, int],
+        parameters: SimulationParameters,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        i, j = match_pair
+        return (
+            self._context_factor_for_team(team_codes[i], parameters),
+            self._context_factor_for_team(team_codes[j], parameters),
+        )
+
+    def _context_factor_for_team(
+        self,
+        team_code: str,
+        parameters: SimulationParameters,
+    ) -> np.ndarray:
+        cfg = parameters.environment
+        factor = cfg.home_advantage_multiplier if team_code in self.HOST_TEAM_CODES else 1.0
+        factors = np.full(self.N, factor, dtype=np.float64)
+        return self._apply_factor_caps(factors, cfg.context_min_cap, cfg.context_max_cap)
+
+    def _calculate_discipline_factors(
+        self,
+        points: np.ndarray,
+        yellow_risk: np.ndarray,
+        suspended_next: np.ndarray,
+        match_pair: tuple[int, int],
+        parameters: SimulationParameters,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        i, j = match_pair
+        return (
+            self._discipline_factor_for_team(points, yellow_risk, suspended_next, i, parameters),
+            self._discipline_factor_for_team(points, yellow_risk, suspended_next, j, parameters),
+        )
+
+    def _discipline_factor_for_team(
+        self,
+        points: np.ndarray,
+        yellow_risk: np.ndarray,
+        suspended_next: np.ndarray,
+        team_pos: int,
+        parameters: SimulationParameters,
+    ) -> np.ndarray:
+        factors = np.ones(self.N, dtype=np.float64)
+        safe = points[:, team_pos] >= 6
+        factors = np.where(
+            safe & yellow_risk[:, team_pos],
+            factors * parameters.discipline.yellow_card_caution_multiplier,
+            factors,
+        )
+        factors = np.where(
+            suspended_next[:, team_pos],
+            factors * parameters.discipline.key_player_suspension_multiplier,
+            factors,
+        )
+        return factors
+
+    def _update_discipline_state(
+        self,
+        yellow_risk: np.ndarray,
+        suspended_next: np.ndarray,
+        points: np.ndarray,
+        match_pair: tuple[int, int],
+    ) -> None:
+        for team_pos in match_pair:
+            safe = points[:, team_pos] >= 6
+            new_risk = self.rng.random(self.N) < np.where(safe, 0.08, 0.14)
+            new_suspension = yellow_risk[:, team_pos] & (self.rng.random(self.N) < 0.08)
+            yellow_risk[:, team_pos] |= new_risk
+            suspended_next[:, team_pos] |= new_suspension
+
     # ── Public API ────────────────────────────────────────────────
 
     def simulate(
@@ -135,6 +375,7 @@ class MonteCarloEngine:
         teams_by_group: Dict[str, List[TeamInGroup]],
         team_names: Dict[str, str],
         completed_matches: List[CompletedMatch] | None = None,
+        preset_parameters: dict | None = None,
     ) -> SimulationResults:
         """Run full tournament simulation.
 
@@ -170,10 +411,11 @@ class MonteCarloEngine:
         n_teams = len(all_codes)
         all_comps = np.array(comp_list, dtype=np.float64)
         names = [team_names.get(c, c) for c in all_codes]
+        parameters = self._parameters_from_dict(preset_parameters)
 
         # ── Phase 1: Group stage ──
         group_rankings, third_ranked = self._simulate_group_stage(
-            group_team_indices, all_comps, all_codes, completed_matches
+            group_team_indices, all_comps, all_codes, completed_matches, parameters
         )
 
         # ── Phase 2: Determine qualified third-placed teams ──
@@ -205,6 +447,7 @@ class MonteCarloEngine:
         all_comps: np.ndarray,
         all_codes: List[str],
         completed_matches: List[CompletedMatch] | None = None,
+        parameters: SimulationParameters | None = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Simulate group stage for all 12 groups.
 
@@ -233,10 +476,12 @@ class MonteCarloEngine:
                 continue
 
             comps = all_comps[idxs]  # [4]
+            group_codes = [all_codes[idx] for idx in idxs]
 
             points = np.zeros((self.N, 4), dtype=np.int32)
             gd_arr = np.zeros((self.N, 4), dtype=np.int32)
             gf_arr = np.zeros((self.N, 4), dtype=np.int32)
+            yellow_risk, suspended_next = self._init_discipline_state()
 
             # Map team_code -> group-internal index (0-3) for this group
             code_to_internal = {all_codes[idx]: pos for pos, idx in enumerate(idxs)}
@@ -273,30 +518,52 @@ class MonteCarloEngine:
                     (min(i_pos, j_pos), max(i_pos, j_pos))
                 )
 
-            # Simulate remaining (not yet completed) matches
-            for i, j in self.GROUP_MATCHES:
-                pair = (min(i, j), max(i, j))
-                if pair in completed_pairs:
-                    continue  # already played, skip
+            # Simulate remaining (not yet completed) matches round by round
+            for round_idx, round_matches in enumerate(self.GROUP_ROUNDS):
+                for i, j in round_matches:
+                    pair = (min(i, j), max(i, j))
+                    if pair in completed_pairs:
+                        continue  # already played, skip
 
-                λ_i, λ_j = expected_goals(
-                    comps[i], comps[j],
-                    avg_goals=self._avg_goals,
-                    delta=self._delta,
-                )
-                g_i = self.rng.poisson(λ_i, self.N)
-                g_j = self.rng.poisson(λ_j, self.N)
+                    λ_i, λ_j = expected_goals(
+                        comps[i], comps[j],
+                        avg_goals=self._avg_goals,
+                        delta=self._delta,
+                    )
+                    active_parameters = parameters or SimulationParameters()
+                    factor_i, factor_j = self._calculate_motivation_factors(
+                        points, gd_arr, gf_arr, round_idx, (i, j), active_parameters
+                    )
+                    discipline_i, discipline_j = self._calculate_discipline_factors(
+                        points, yellow_risk, suspended_next, (i, j), active_parameters
+                    )
+                    context_i, context_j = self._calculate_context_factors(group_codes, (i, j), active_parameters)
+                    lambda_i = np.full(self.N, λ_i, dtype=np.float64) * factor_i * discipline_i * context_i
+                    lambda_j = np.full(self.N, λ_j, dtype=np.float64) * factor_j * discipline_j * context_j
+                    suspended_next[:, i] = False
+                    suspended_next[:, j] = False
+                    honor_mask = (round_idx == 2) & (points[:, i] <= 1) & (points[:, j] <= 1)
+                    lambda_i, lambda_j = self._apply_honor_match_randomness(
+                        lambda_i, lambda_j, honor_mask, active_parameters.motivation.honor_match_randomness_multiplier
+                    )
+                    g_i = self.rng.poisson(lambda_i)
+                    g_j = self.rng.poisson(lambda_j)
+                    mutual_draw_mask = self._detect_mutual_draw_scenario(points, gd_arr, round_idx, (i, j))
+                    g_i, g_j = self._apply_mutual_draw_boost(
+                        g_i, g_j, mutual_draw_mask, active_parameters.collusion.mutual_draw_boost
+                    )
 
-                win_i = (g_i > g_j).astype(np.int32)
-                win_j = (g_j > g_i).astype(np.int32)
-                draw = (g_i == g_j).astype(np.int32)
+                    win_i = (g_i > g_j).astype(np.int32)
+                    win_j = (g_j > g_i).astype(np.int32)
+                    draw = (g_i == g_j).astype(np.int32)
 
-                points[:, i] += win_i * 3 + draw * 1
-                points[:, j] += win_j * 3 + draw * 1
-                gd_arr[:, i] += g_i - g_j
-                gd_arr[:, j] += g_j - g_i
-                gf_arr[:, i] += g_i
-                gf_arr[:, j] += g_j
+                    points[:, i] += win_i * 3 + draw * 1
+                    points[:, j] += win_j * 3 + draw * 1
+                    gd_arr[:, i] += g_i - g_j
+                    gd_arr[:, j] += g_j - g_i
+                    gf_arr[:, i] += g_i
+                    gf_arr[:, j] += g_j
+                    self._update_discipline_state(yellow_risk, suspended_next, points, (i, j))
 
             # Rank: points > gd > gf
             rank_score = (

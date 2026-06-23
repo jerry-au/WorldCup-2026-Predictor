@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/admin_data_provider.dart';
+import '../../providers/simulation_preset_provider.dart';
 import '../../services/api_service.dart';
 import '../../services/providers.dart';
 
@@ -29,14 +30,16 @@ class AdminPage extends ConsumerWidget {
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
-        children: const [
-          _PlayerUpdateCard(),
-          SizedBox(height: 16),
-          _MatchResultsCard(),
-          SizedBox(height: 16),
-          _OddsUpdateCard(),
-          SizedBox(height: 16),
-          _SystemInfoCard(),
+        children: [
+          const _PlayerUpdateCard(),
+          const SizedBox(height: 16),
+          const _MatchResultsCard(),
+          const SizedBox(height: 16),
+          const _OddsUpdateCard(),
+          const SizedBox(height: 16),
+          const _SimulationPresetCard(),
+          const SizedBox(height: 16),
+          const _SystemInfoCard(),
         ],
       ),
     );
@@ -864,6 +867,525 @@ class _OddsUpdateCardState extends ConsumerState<_OddsUpdateCard> {
       ),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('加载失败: $e')),
+    );
+  }
+}
+
+// ─── Simulation Preset Card ──────────────────────────────────
+
+const _kPresetSliderRanges = {
+  'qualified_rotation_multiplier': [0.50, 1.50],
+  'eliminated_morale_multiplier': [0.50, 1.50],
+  'top_spot_motivation_multiplier': [0.50, 1.50],
+  'honor_match_randomness_multiplier': [0.50, 1.50],
+  'mutual_draw_boost': [1.0, 1.5],
+  'opponent_selection_loss_multiplier': [0.50, 1.50],
+  'home_advantage_multiplier': [0.50, 1.50],
+  'travel_fatigue_multiplier': [0.50, 1.50],
+  'weather_adaptation_multiplier': [0.50, 1.50],
+  'jet_lag_multiplier': [0.50, 1.50],
+  'yellow_card_caution_multiplier': [0.50, 1.50],
+  'key_player_suspension_multiplier': [0.50, 1.50],
+};
+
+class _SimulationPresetCard extends ConsumerStatefulWidget {
+  const _SimulationPresetCard();
+
+  @override
+  ConsumerState<_SimulationPresetCard> createState() => _SimulationPresetCardState();
+}
+
+class _SimulationPresetCardState extends ConsumerState<_SimulationPresetCard> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(simulationPresetProvider.notifier).loadPresets();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(simulationPresetProvider);
+    final notifier = ref.read(simulationPresetProvider.notifier);
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(Icons.tune, size: 20, color: Colors.grey.shade700),
+                const SizedBox(width: 8),
+                Text('模拟参数',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                if (state.selectedPreset?.isDefault == true)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text('当前默认',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF2E7D32), fontWeight: FontWeight.w500)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text('当前模拟使用默认预设，赛事模拟页不可临时切换',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            const SizedBox(height: 16),
+
+            // Loading indicator
+            if (state.isLoading)
+              const Center(child: Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              ))
+            else ...[
+              // Preset selector
+              Row(
+                children: [
+                  const Text('预设：', style: TextStyle(fontSize: 13)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButton<String>(
+                      value: state.selectedPreset?.id,
+                      isExpanded: true,
+                      hint: const Text('选择预设'),
+                      items: state.presets.map((preset) {
+                        return DropdownMenuItem(
+                          value: preset.id,
+                          child: Text(preset.name, style: const TextStyle(fontSize: 13)),
+                        );
+                      }).toList(),
+                      onChanged: (id) {
+                        if (id != null) notifier.selectPreset(id);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    height: 30,
+                    child: ElevatedButton(
+                      onPressed: state.isSaving ? null : () => notifier.setDefaultSelected(),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        backgroundColor: Colors.grey.shade100,
+                        foregroundColor: const Color(0xFF1B5E20),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text('设为默认', style: TextStyle(fontSize: 11)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+
+              // Success/error messages
+              if (state.successMessage != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(state.successMessage!,
+                      style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+                ),
+              if (state.error != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(state.error!,
+                      style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                ),
+
+              // Parameters
+              if (state.selectedPreset != null) ...[
+                const Divider(height: 1),
+                const SizedBox(height: 12),
+
+                // Motivation
+                _PresetSection(
+                  title: '战意',
+                  children: [
+                    _PresetSlider(
+                      label: '已出线轮换强度',
+                      range: _kPresetSliderRanges['qualified_rotation_multiplier']!,
+                      value: state.selectedPreset!.parameters.motivation.qualifiedRotationMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            motivation: state.selectedPreset!.parameters.motivation.copyWith(
+                              qualifiedRotationMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                    _PresetSlider(
+                      label: '已出局战意下降',
+                      range: _kPresetSliderRanges['eliminated_morale_multiplier']!,
+                      value: state.selectedPreset!.parameters.motivation.eliminatedMoraleMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            motivation: state.selectedPreset!.parameters.motivation.copyWith(
+                              eliminatedMoraleMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                    _PresetSlider(
+                      label: '争第一/第二战意增强',
+                      range: _kPresetSliderRanges['top_spot_motivation_multiplier']!,
+                      value: state.selectedPreset!.parameters.motivation.topSpotMotivationMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            motivation: state.selectedPreset!.parameters.motivation.copyWith(
+                              topSpotMotivationMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                    _PresetSlider(
+                      label: '荣誉战随机性',
+                      range: _kPresetSliderRanges['honor_match_randomness_multiplier']!,
+                      value: state.selectedPreset!.parameters.motivation.honorMatchRandomnessMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            motivation: state.selectedPreset!.parameters.motivation.copyWith(
+                              honorMatchRandomnessMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Collusion
+                _PresetSection(
+                  title: '默契球',
+                  children: [
+                    _PresetSlider(
+                      label: '打平携手出线平局提升',
+                      range: _kPresetSliderRanges['mutual_draw_boost']!,
+                      value: state.selectedPreset!.parameters.collusion.mutualDrawBoost,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            collusion: state.selectedPreset!.parameters.collusion.copyWith(
+                              mutualDrawBoost: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                    _PresetSlider(
+                      label: '挑对手倾向强度',
+                      range: _kPresetSliderRanges['opponent_selection_loss_multiplier']!,
+                      value: state.selectedPreset!.parameters.collusion.opponentSelectionLossMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            collusion: state.selectedPreset!.parameters.collusion.copyWith(
+                              opponentSelectionLossMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Environment
+                _PresetSection(
+                  title: '环境',
+                  children: [
+                    _PresetSlider(
+                      label: '主场优势',
+                      range: _kPresetSliderRanges['home_advantage_multiplier']!,
+                      value: state.selectedPreset!.parameters.environment.homeAdvantageMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            environment: state.selectedPreset!.parameters.environment.copyWith(
+                              homeAdvantageMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                    _PresetSlider(
+                      label: '旅途疲劳',
+                      range: _kPresetSliderRanges['travel_fatigue_multiplier']!,
+                      value: state.selectedPreset!.parameters.environment.travelFatigueMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            environment: state.selectedPreset!.parameters.environment.copyWith(
+                              travelFatigueMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                    _PresetSlider(
+                      label: '天气不适应',
+                      range: _kPresetSliderRanges['weather_adaptation_multiplier']!,
+                      value: state.selectedPreset!.parameters.environment.weatherAdaptationMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            environment: state.selectedPreset!.parameters.environment.copyWith(
+                              weatherAdaptationMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                    _PresetSlider(
+                      label: '时差影响',
+                      range: _kPresetSliderRanges['jet_lag_multiplier']!,
+                      value: state.selectedPreset!.parameters.environment.jetLagMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            environment: state.selectedPreset!.parameters.environment.copyWith(
+                              jetLagMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Discipline
+                _PresetSection(
+                  title: '纪律',
+                  children: [
+                    _PresetSlider(
+                      label: '黄牌保守影响',
+                      range: _kPresetSliderRanges['yellow_card_caution_multiplier']!,
+                      value: state.selectedPreset!.parameters.discipline.yellowCardCautionMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            discipline: state.selectedPreset!.parameters.discipline.copyWith(
+                              yellowCardCautionMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                    _PresetSlider(
+                      label: '核心停赛影响',
+                      range: _kPresetSliderRanges['key_player_suspension_multiplier']!,
+                      value: state.selectedPreset!.parameters.discipline.keyPlayerSuspensionMultiplier,
+                      onChanged: (v) {
+                        final updated = state.selectedPreset!.copyWith(
+                          parameters: state.selectedPreset!.parameters.copyWith(
+                            discipline: state.selectedPreset!.parameters.discipline.copyWith(
+                              keyPlayerSuspensionMultiplier: v,
+                            ),
+                          ),
+                        );
+                        notifier.updateDraft(updated);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Actions
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: state.isSaving ? null : () => notifier.saveSelected(),
+                        icon: state.isSaving
+                            ? const SizedBox(
+                                width: 16, height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.save, size: 18),
+                        label: Text(state.isSaving ? '保存中...' : '保存配置'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1B5E20),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: state.isSaving ? null : () => _showDuplicateDialog(context, notifier),
+                      icon: const Icon(Icons.copy, size: 18),
+                      label: const Text('复制'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF1B5E20),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: state.isSaving || state.selectedPreset?.isBuiltin != true
+                          ? null
+                          : () => notifier.resetSelected(),
+                      icon: const Icon(Icons.restore, size: 18),
+                      label: const Text('重置'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF1B5E20),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDuplicateDialog(BuildContext context, SimulationPresetNotifier notifier) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('复制预设'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: '输入新预设名称',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                notifier.duplicateSelected(controller.text.trim());
+                Navigator.of(ctx).pop();
+              }
+            },
+            child: const Text('确认'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Preset Section Helper ──────────────────────────────────
+
+class _PresetSection extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+
+  const _PresetSection({required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1B5E20))),
+        const SizedBox(height: 8),
+        ...children,
+      ],
+    );
+  }
+}
+
+// ─── Preset Slider Helper ────────────────────────────────────
+
+class _PresetSlider extends StatelessWidget {
+  final String label;
+  final List<double> range;
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _PresetSlider({
+    required this.label,
+    required this.range,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(label, style: const TextStyle(fontSize: 12)),
+          ),
+          Expanded(
+            child: Slider(
+              value: value.clamp(range[0], range[1]),
+              min: range[0],
+              max: range[1],
+              divisions: 100,
+              onChanged: onChanged,
+            ),
+          ),
+          SizedBox(
+            width: 42,
+            child: Text(value.toStringAsFixed(2),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+          ),
+        ],
+      ),
     );
   }
 }

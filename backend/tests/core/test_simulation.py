@@ -41,6 +41,35 @@ def _make_team_names(groups: dict[str, list[TeamInGroup]]) -> dict[str, str]:
     return names
 
 
+def _make_preset_parameters() -> dict:
+    return {
+        "motivation": {
+            "qualified_rotation_multiplier": 0.88,
+            "eliminated_morale_multiplier": 0.82,
+            "top_spot_motivation_multiplier": 1.06,
+            "honor_match_randomness_multiplier": 1.10,
+            "motivation_min_cap": 0.80,
+            "motivation_max_cap": 1.15,
+        },
+        "collusion": {
+            "mutual_draw_boost": 1.12,
+            "opponent_selection_loss_multiplier": 0.94,
+        },
+        "environment": {
+            "home_advantage_multiplier": 1.05,
+            "travel_fatigue_multiplier": 0.97,
+            "weather_adaptation_multiplier": 0.96,
+            "jet_lag_multiplier": 0.97,
+            "context_min_cap": 0.85,
+            "context_max_cap": 1.10,
+        },
+        "discipline": {
+            "yellow_card_caution_multiplier": 0.96,
+            "key_player_suspension_multiplier": 0.90,
+        },
+    }
+
+
 def test_deterministic_with_seed():
     """Same seed produces identical results across two runs."""
     groups = _make_teams_by_group()
@@ -54,6 +83,195 @@ def test_deterministic_with_seed():
 
     np.testing.assert_array_equal(result1.champion, result2.champion)
     np.testing.assert_array_equal(result1.round_32, result2.round_32)
+
+
+def test_deterministic_with_same_preset_parameters():
+    groups = _make_teams_by_group()
+    names = _make_team_names(groups)
+    preset = _make_preset_parameters()
+
+    engine1 = MonteCarloEngine(num_iterations=100, seed=42)
+    result1 = engine1.simulate(groups, names, preset_parameters=preset)
+
+    engine2 = MonteCarloEngine(num_iterations=100, seed=42)
+    result2 = engine2.simulate(groups, names, preset_parameters=preset)
+
+    np.testing.assert_array_equal(result1.champion, result2.champion)
+    np.testing.assert_array_equal(result1.round_32, result2.round_32)
+
+
+def test_motivation_factors_apply_rotation_and_elimination():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+    points = np.array([
+        [6, 0, 3, 3],
+        [6, 0, 3, 3],
+        [6, 0, 3, 3],
+    ], dtype=np.int32)
+    gd_arr = np.array([
+        [3, -5, 1, 1],
+        [3, -5, 1, 1],
+        [3, -5, 1, 1],
+    ], dtype=np.int32)
+    gf_arr = np.ones((3, 4), dtype=np.int32)
+
+    factor_i, factor_j = engine._calculate_motivation_factors(
+        points, gd_arr, gf_arr, round_idx=2, match_pair=(0, 1), parameters=parameters
+    )
+
+    np.testing.assert_array_equal(factor_i, np.full(3, 0.88))
+    np.testing.assert_array_equal(factor_j, np.full(3, 0.82))
+
+
+def test_motivation_factors_apply_top_spot_boost_and_caps():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+    points = np.array([
+        [4, 4, 3, 0],
+        [4, 4, 3, 0],
+        [4, 4, 3, 0],
+    ], dtype=np.int32)
+    gd_arr = np.array([
+        [1, 1, 0, -2],
+        [1, 1, 0, -2],
+        [1, 1, 0, -2],
+    ], dtype=np.int32)
+    gf_arr = np.ones((3, 4), dtype=np.int32)
+
+    factor_i, factor_j = engine._calculate_motivation_factors(
+        points, gd_arr, gf_arr, round_idx=2, match_pair=(0, 1), parameters=parameters
+    )
+    capped = engine._apply_factor_caps(np.array([0.2, 1.0, 2.0]), 0.80, 1.15)
+
+    np.testing.assert_array_equal(factor_i, np.full(3, 1.06))
+    np.testing.assert_array_equal(factor_j, np.full(3, 1.06))
+    np.testing.assert_array_equal(capped, np.array([0.80, 1.0, 1.15]))
+
+
+def test_mutual_draw_scenario_detects_safe_round_three_draw():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    points = np.array([
+        [4, 4, 0, 0],
+        [4, 4, 0, 0],
+        [4, 4, 0, 0],
+    ], dtype=np.int32)
+    gd_arr = np.array([
+        [2, 1, -1, -2],
+        [2, 1, -1, -2],
+        [2, 1, -1, -2],
+    ], dtype=np.int32)
+
+    mask = engine._detect_mutual_draw_scenario(points, gd_arr, round_idx=2, match_pair=(0, 1))
+
+    np.testing.assert_array_equal(mask, np.array([True, True, True]))
+
+
+def test_mutual_draw_boost_converts_low_score_one_goal_wins():
+    engine = MonteCarloEngine(num_iterations=5, seed=42)
+    g_i = np.array([1, 2, 3, 0, 2], dtype=np.int32)
+    g_j = np.array([0, 1, 0, 1, 2], dtype=np.int32)
+    mask = np.array([True, True, True, True, False])
+
+    adjusted_i, adjusted_j = engine._apply_mutual_draw_boost(g_i, g_j, mask, boost=1.5)
+
+    assert (adjusted_i == adjusted_j).sum() > (g_i == g_j).sum()
+    assert adjusted_i[2] == 3
+    assert adjusted_j[2] == 0
+
+
+def test_honor_match_randomness_changes_lambda_for_masked_rows():
+    engine = MonteCarloEngine(num_iterations=4, seed=42)
+    lambda_i = np.ones(4)
+    lambda_j = np.ones(4)
+    mask = np.array([True, True, False, False])
+
+    adjusted_i, adjusted_j = engine._apply_honor_match_randomness(lambda_i, lambda_j, mask, 1.10)
+
+    assert not np.array_equal(adjusted_i[:2], lambda_i[:2])
+    np.testing.assert_array_equal(adjusted_i[2:], lambda_i[2:])
+    np.testing.assert_array_equal(adjusted_j[2:], lambda_j[2:])
+
+
+def test_discipline_state_initializes_per_iteration_and_team():
+    engine = MonteCarloEngine(num_iterations=4, seed=42)
+
+    yellow_risk, suspended_next = engine._init_discipline_state()
+
+    assert yellow_risk.shape == (4, 4)
+    assert suspended_next.shape == (4, 4)
+    assert yellow_risk.dtype == bool
+    assert suspended_next.dtype == bool
+
+
+def test_discipline_factors_apply_yellow_and_suspension_penalties():
+    engine = MonteCarloEngine(num_iterations=4, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+    points = np.array([
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+    ], dtype=np.int32)
+    yellow_risk = np.array([
+        [True, False, False, False],
+        [True, False, False, False],
+        [False, False, False, False],
+        [False, False, False, False],
+    ])
+    suspended_next = np.array([
+        [False, True, False, False],
+        [False, True, False, False],
+        [False, False, False, False],
+        [False, False, False, False],
+    ])
+
+    factor_i, factor_j = engine._calculate_discipline_factors(
+        points, yellow_risk, suspended_next, match_pair=(0, 1), parameters=parameters
+    )
+
+    np.testing.assert_array_equal(factor_i, np.array([0.96, 0.96, 1.0, 1.0]))
+    np.testing.assert_array_equal(factor_j, np.array([0.90, 0.90, 1.0, 1.0]))
+
+
+def test_update_discipline_state_can_create_future_suspension():
+    engine = MonteCarloEngine(num_iterations=4, seed=42)
+    yellow_risk, suspended_next = engine._init_discipline_state()
+    points = np.array([
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+    ], dtype=np.int32)
+
+    engine._update_discipline_state(yellow_risk, suspended_next, points, match_pair=(0, 1))
+
+    assert yellow_risk[:, [0, 1]].any() or suspended_next[:, [0, 1]].any()
+
+
+def test_context_factors_apply_host_advantage_and_caps():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+
+    factor_i, factor_j = engine._calculate_context_factors(
+        ["USA", "FRA", "BRA", "JPN"], match_pair=(0, 1), parameters=parameters
+    )
+    capped = engine._apply_factor_caps(np.array([0.2, 1.0, 2.0]), 0.85, 1.10)
+
+    np.testing.assert_array_equal(factor_i, np.full(3, 1.05))
+    np.testing.assert_array_equal(factor_j, np.ones(3))
+    np.testing.assert_array_equal(capped, np.array([0.85, 1.0, 1.10]))
+
+
+def test_context_factors_are_neutral_without_available_metadata():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+
+    factor_i, factor_j = engine._calculate_context_factors(
+        ["BRA", "FRA", "JPN", "MAR"], match_pair=(0, 1), parameters=parameters
+    )
+
+    np.testing.assert_array_equal(factor_i, np.ones(3))
+    np.testing.assert_array_equal(factor_j, np.ones(3))
 
 
 def test_group_stage_ranking():
@@ -230,3 +448,24 @@ def test_completed_matches_empty_same_as_none():
 
     np.testing.assert_array_equal(result_none.champion, result_empty.champion)
     np.testing.assert_array_equal(result_none.round_32, result_empty.round_32)
+
+
+def test_completed_first_round_match_skips_only_that_pair():
+    groups = _make_teams_by_group()
+    names = _make_team_names(groups)
+    completed = [
+        CompletedMatch(
+            team_a_code="T00",
+            team_b_code="T01",
+            score_a=2,
+            score_b=0,
+            group_name="A",
+        ),
+    ]
+
+    engine = MonteCarloEngine(num_iterations=300, seed=42)
+    result = engine.simulate(groups, names, completed_matches=completed)
+
+    t00_idx = result.team_codes.index("T00")
+    t01_idx = result.team_codes.index("T01")
+    assert result.round_32[t00_idx] > result.round_32[t01_idx]

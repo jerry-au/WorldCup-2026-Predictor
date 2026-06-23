@@ -8,11 +8,24 @@ import 'bracket_painter.dart';
 import '../prediction/prediction_page.dart';
 import '../teams/team_list_page.dart';
 
-class SimulationPage extends ConsumerWidget {
+class SimulationPage extends ConsumerStatefulWidget {
   const SimulationPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SimulationPage> createState() => _SimulationPageState();
+}
+
+class _SimulationPageState extends ConsumerState<SimulationPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(simulationProvider.notifier).loadDefaultPresetName();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(simulationProvider);
     final notifier = ref.read(simulationProvider.notifier);
 
@@ -71,6 +84,20 @@ class SimulationPage extends ConsumerWidget {
               '基于混合泊松-Elo 模型 · 蒙特卡洛 10,000 次',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
+            if (state.presetName != null) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '当前模拟预设：${state.presetName}',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF2E7D32)),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
 
             if (state.isRunning)

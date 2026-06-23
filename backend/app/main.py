@@ -8,7 +8,7 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
-from .api import auth, teams, predict, recommendations, data, matches
+from .api import auth, teams, predict, recommendations, data, matches, simulation
 from .tasks.scheduler import start_scheduler
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -44,6 +44,7 @@ app.include_router(predict.router)
 app.include_router(recommendations.router)
 app.include_router(data.router)
 app.include_router(matches.router)
+app.include_router(simulation.router)
 
 # 静态文件服务（球员头像、国旗等）
 if STATIC_DIR.exists():
