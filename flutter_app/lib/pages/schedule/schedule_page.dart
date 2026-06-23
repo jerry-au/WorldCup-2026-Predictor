@@ -32,6 +32,26 @@ String formatScheduleProbability(double probability) {
   return '${(probability * 100).round()}%';
 }
 
+int _compareScheduleTimesDesc(DateTime? a, DateTime? b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return b.compareTo(a);
+}
+
+List<DateTime?> sortScheduleTimesForStatus(
+    List<DateTime?> times, String? status) {
+  if (status != MatchStatus.completed) return times;
+  return List<DateTime?>.of(times)..sort(_compareScheduleTimesDesc);
+}
+
+List<ScheduleMatch> _sortScheduleMatchesForStatus(
+    List<ScheduleMatch> matches, String? status) {
+  if (status != MatchStatus.completed) return matches;
+  return List<ScheduleMatch>.of(matches)
+    ..sort((a, b) => _compareScheduleTimesDesc(a.commenceTime, b.commenceTime));
+}
+
 class _SchedulePageState extends ConsumerState<SchedulePage> {
   String? _selectedStage;
   String? _selectedStatus = SchedulePage.defaultStatus;
@@ -102,8 +122,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                       value: _selectedStage,
                       decoration: InputDecoration(
                         labelText: '阶段',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       isDense: true,
                       items: _stageOptions,
@@ -119,8 +141,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                       value: _selectedStatus,
                       decoration: InputDecoration(
                         labelText: '状态',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       isDense: true,
                       items: _statusOptions,
@@ -135,7 +159,6 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
             ),
           ),
         ),
-
         Expanded(
           child: _ScheduleMatchList(
             key: ValueKey('${_selectedStage ?? ''}_${_selectedStatus ?? ''}'),
@@ -155,6 +178,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                     _allMatches.clear();
                   }
                   _allMatches.addAll(data.matches);
+                  if (_selectedStatus == MatchStatus.completed) {
+                    _allMatches.sort((a, b) => _compareScheduleTimesDesc(
+                        a.commenceTime, b.commenceTime));
+                  }
                   _totalMatches = data.total;
                   _totalPages = data.totalPages;
                   _isLoadingNextPage = false;
@@ -225,7 +252,13 @@ class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
     return matchesAsync.when(
       loading: () => widget.allMatches.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : _buildListView(widget.allMatches, null, ref, isLoadingMore: true),
+          : _buildListView(
+              _sortScheduleMatchesForStatus(
+                  widget.allMatches, widget.filter.status),
+              null,
+              ref,
+              isLoadingMore: true,
+            ),
       error: (err, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -235,7 +268,8 @@ class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
             Text('加载失败', style: TextStyle(color: Colors.grey.shade600)),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: () => ref.invalidate(allMatchesProvider(widget.filter)),
+              onPressed: () =>
+                  ref.invalidate(allMatchesProvider(widget.filter)),
               child: const Text('重试'),
             ),
           ],
@@ -247,13 +281,20 @@ class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
           widget.onDataLoaded(data);
         });
 
-        final displayMatches = widget.currentPage == 1 ? data.matches : widget.allMatches;
-        return _buildListView(displayMatches, data, ref);
+        final displayMatches =
+            widget.currentPage == 1 ? data.matches : widget.allMatches;
+        return _buildListView(
+          _sortScheduleMatchesForStatus(displayMatches, widget.filter.status),
+          data,
+          ref,
+        );
       },
     );
   }
 
-  Widget _buildListView(List<ScheduleMatch> matches, AllMatchesResponse? data, WidgetRef ref, {bool isLoadingMore = false}) {
+  Widget _buildListView(
+      List<ScheduleMatch> matches, AllMatchesResponse? data, WidgetRef ref,
+      {bool isLoadingMore = false}) {
     if (matches.isEmpty) {
       return Center(
         child: Column(
@@ -261,7 +302,8 @@ class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
           children: [
             Icon(Icons.event_note, size: 64, color: Colors.grey.shade400),
             const SizedBox(height: 16),
-            Text('暂无赛程数据', style: TextStyle(color: Colors.grey.shade500, fontSize: 16)),
+            Text('暂无赛程数据',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 16)),
           ],
         ),
       );
@@ -325,27 +367,36 @@ class _ScheduleMatchCard extends StatelessWidget {
                 children: [
                   // 阶段标签
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.blue.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       _getStageLabel(match.stage),
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue),
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue),
                     ),
                   ),
                   const SizedBox(width: 8),
                   // 状态标签
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(match.status ?? '').withOpacity(0.1),
+                      color:
+                          _getStatusColor(match.status ?? '').withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       _getStatusText(match.status ?? ''),
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _getStatusColor(match.status ?? '')),
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _getStatusColor(match.status ?? '')),
                     ),
                   ),
                   const Spacer(),
@@ -372,15 +423,26 @@ class _ScheduleMatchCard extends StatelessWidget {
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
-                            placeholder: (_, __) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            errorWidget: (_, __, ___) => Container(
+                                width: 40,
+                                height: 40,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.flag,
+                                    size: 24, color: Colors.grey)),
+                            placeholder: (_, __) => Container(
+                                width: 40,
+                                height: 40,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.flag,
+                                    size: 24, color: Colors.grey)),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           match.home.nameCn ?? match.home.name,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w500),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -397,14 +459,21 @@ class _ScheduleMatchCard extends StatelessWidget {
                             children: [
                               Text(
                                 '${match.score?.home ?? "-"} : ${match.score?.away ?? "-"}',
-                                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.green),
+                                style: const TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green),
                               ),
-                              if (match.score != null && (match.score!.homeEt != null || match.score!.homePenalties != null))
+                              if (match.score != null &&
+                                  (match.score!.homeEt != null ||
+                                      match.score!.homePenalties != null))
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
                                   child: Text(
                                     _getExtraScoreText(match.score!),
-                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade600),
                                   ),
                                 ),
                             ],
@@ -412,12 +481,18 @@ class _ScheduleMatchCard extends StatelessWidget {
                         : Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('VS', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.grey.shade400)),
+                              Text('VS',
+                                  style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey.shade400)),
                               const SizedBox(height: 4),
                               if (match.prediction != null)
                                 Text(
                                   '${formatScheduleProbability(match.prediction!.win)} / ${formatScheduleProbability(match.prediction!.draw)} / ${formatScheduleProbability(match.prediction!.lose)}',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade600),
                                 ),
                             ],
                           ),
@@ -433,15 +508,26 @@ class _ScheduleMatchCard extends StatelessWidget {
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
-                            placeholder: (_, __) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            errorWidget: (_, __, ___) => Container(
+                                width: 40,
+                                height: 40,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.flag,
+                                    size: 24, color: Colors.grey)),
+                            placeholder: (_, __) => Container(
+                                width: 40,
+                                height: 40,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.flag,
+                                    size: 24, color: Colors.grey)),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           match.away.nameCn ?? match.away.name,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w500),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -461,13 +547,19 @@ class _ScheduleMatchCard extends StatelessWidget {
                     if (match.groupName != null) ...[
                       Icon(Icons.group, size: 14, color: Colors.grey.shade500),
                       const SizedBox(width: 4),
-                      Text(match.groupName!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Text(match.groupName!,
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade600)),
                     ],
                     if (match.stadium != null) ...[
                       const Spacer(),
-                      Icon(Icons.stadium, size: 14, color: Colors.grey.shade500),
+                      Icon(Icons.stadium,
+                          size: 14, color: Colors.grey.shade500),
                       const SizedBox(width: 4),
-                      Flexible(child: Text(match.stadium!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                      Flexible(
+                          child: Text(match.stadium!,
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey.shade600))),
                     ],
                   ],
                 ),
@@ -477,17 +569,27 @@ class _ScheduleMatchCard extends StatelessWidget {
               if (isLive) ...[
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.red.shade400]),
+                    gradient: LinearGradient(
+                        colors: [Colors.orange.shade400, Colors.red.shade400]),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(width: 8, height: 8, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white)),
+                      SizedBox(
+                          width: 8,
+                          height: 8,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 1.5, color: Colors.white)),
                       SizedBox(width: 6),
-                      Text('进行中', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text('进行中',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12)),
                     ],
                   ),
                 ),
@@ -499,11 +601,13 @@ class _ScheduleMatchCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.analytics_outlined, size: 14, color: Colors.blue.shade300),
+                    Icon(Icons.analytics_outlined,
+                        size: 14, color: Colors.blue.shade300),
                     const SizedBox(width: 4),
                     Text(
                       '点击查看详细预测',
-                      style: TextStyle(fontSize: 11, color: Colors.blue.shade300),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.blue.shade300),
                     ),
                   ],
                 ),
@@ -529,28 +633,40 @@ class _ScheduleMatchCard extends StatelessWidget {
 
   String _getStageLabel(String? stage) {
     switch (stage) {
-      case 'group_stage': return '小组赛';
-      case 'round_of_16': return '1/8 决赛';
-      case 'quarter': return '1/4 决赛';
-      case 'semi': return '半决赛';
-      case 'final': return '决赛';
-      default: return stage ?? '';
+      case 'group_stage':
+        return '小组赛';
+      case 'round_of_16':
+        return '1/8 决赛';
+      case 'quarter':
+        return '1/4 决赛';
+      case 'semi':
+        return '半决赛';
+      case 'final':
+        return '决赛';
+      default:
+        return stage ?? '';
     }
   }
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case MatchStatus.completed: return Colors.green;
-      case MatchStatus.live: return Colors.orange;
-      default: return Colors.blue;
+      case MatchStatus.completed:
+        return Colors.green;
+      case MatchStatus.live:
+        return Colors.orange;
+      default:
+        return Colors.blue;
     }
   }
 
   String _getStatusText(String status) {
     switch (status) {
-      case MatchStatus.completed: return '已结束';
-      case MatchStatus.live: return '进行中';
-      default: return '未开始';
+      case MatchStatus.completed:
+        return '已结束';
+      case MatchStatus.live:
+        return '进行中';
+      default:
+        return '未开始';
     }
   }
 
@@ -558,7 +674,8 @@ class _ScheduleMatchCard extends StatelessWidget {
     final time = match.commenceTime ?? DateTime.now();
 
     // 已结束 / 进行中的比赛显示实际日期时间
-    if (match.status == MatchStatus.completed || match.status == MatchStatus.live) {
+    if (match.status == MatchStatus.completed ||
+        match.status == MatchStatus.live) {
       final h = time.hour.toString().padLeft(2, '0');
       final m = time.minute.toString().padLeft(2, '0');
       return '${time.month}/${time.day} $h:$m';
