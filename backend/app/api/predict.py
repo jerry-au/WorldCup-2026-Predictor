@@ -18,6 +18,11 @@ from ..core.simulation import MonteCarloEngine, TeamInGroup, CompletedMatch
 from ..core.elo import composite_rating, get_team_dongqiudi_strength, get_team_market_value
 from ..services.odds import odds_client
 from ..services.recommendation import recommendation_engine
+from ..services.simulation_preset import (
+    ensure_default_presets,
+    get_default_preset,
+    parse_preset_parameters,
+)
 
 router = APIRouter(prefix="/api/v1/predict", tags=["predict"])
 engine = PredictionEngine()
@@ -64,16 +69,31 @@ def start_tournament_simulation(
     db: Session = Depends(get_db),
 ):
     """Start Monte Carlo tournament simulation (background task)."""
+    ensure_default_presets(db)
+    preset = get_default_preset(db)
+    preset_parameters = parse_preset_parameters(preset)
+
     run_id = str(uuid.uuid4())
     run = SimulationRun(id=run_id, status="running")
     db.add(run)
     db.commit()
 
-    _task_registry[run_id] = {"status": "running", "progress": 0.0}
+    _task_registry[run_id] = {
+        "status": "running",
+        "progress": 0.0,
+        "preset_id": preset.id,
+        "preset_name": preset.name,
+        "preset_parameters": preset_parameters,
+    }
 
     background_tasks.add_task(_run_simulation, run_id)
 
-    return TournamentResponse(task_id=run_id, status="running")
+    return TournamentResponse(
+        task_id=run_id,
+        status="running",
+        preset_id=preset.id,
+        preset_name=preset.name,
+    )
 
 
 def _load_completed_matches(db: Session) -> list[CompletedMatch]:
@@ -165,10 +185,16 @@ def _run_simulation(task_id: str):
 
         # Load completed group-stage matches from DB (real results)
         completed_matches = _load_completed_matches(db)
+        task = _task_registry.get(task_id, {})
 
         # Run simulation
         engine = MonteCarloEngine()
-        results = engine.simulate(groups, team_names, completed_matches)
+        results = engine.simulate(
+            groups,
+            team_names,
+            completed_matches,
+            preset_parameters=task.get("preset_parameters"),
+        )
 
         _task_registry[task_id]["progress"] = 0.8
 
@@ -206,7 +232,12 @@ def _run_simulation(task_id: str):
             run.completed_at = datetime.utcnow()
         db.commit()
 
-        _task_registry[task_id] = {"status": "completed", "progress": 1.0}
+        _task_registry[task_id] = {
+            "status": "completed",
+            "progress": 1.0,
+            "preset_id": task.get("preset_id"),
+            "preset_name": task.get("preset_name"),
+        }
 
     except Exception as e:
         run = db.query(SimulationRun).filter(SimulationRun.id == task_id).first()
@@ -258,6 +289,8 @@ def get_task_progress(task_id: str, db: Session = Depends(get_db)):
         status="completed",
         progress=1.0,
         result={
+            "preset_id": task.get("preset_id"),
+            "preset_name": task.get("preset_name"),
             "standings": [
                 {
                     "team_code": r.team_code,

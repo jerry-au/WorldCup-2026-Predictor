@@ -46,6 +46,8 @@ class PredictResponse(BaseModel):
 class TournamentResponse(BaseModel):
     task_id: str
     status: str
+    preset_id: str | None = None
+    preset_name: str | None = None
 
 
 class TeamProbabilityOut(BaseModel):
