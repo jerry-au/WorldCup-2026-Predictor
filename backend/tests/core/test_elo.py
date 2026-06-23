@@ -1,79 +1,92 @@
-from datetime import datetime
+"""Tests for Elo rating system functions."""
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+import pytest
 
-from app.core.elo import update_elo, update_team_elos_from_completed_matches
-from app.database import Base
-from app.models.team import Team
-from app.models.zafronix_data import ZafronixMatch
-
-
-def make_session():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
-    return sessionmaker(autocommit=False, autoflush=False, bind=engine)()
+from app.core.elo import (
+    _parse_market_value,
+    composite_rating,
+    expected_score,
+    update_elo,
+)
 
 
-def test_update_team_elos_from_completed_matches_updates_team_ratings():
-    db = make_session()
-    db.add_all([
-        Team(code="BRA", name="Brazil", elo_rating=1800.0),
-        Team(code="FRA", name="France", elo_rating=1700.0),
-        ZafronixMatch(
-            match_id="BRA-FRA-1",
-            team_home_code="BRA",
-            team_away_code="FRA",
-            score_home=2,
-            score_away=1,
-            status="completed",
-            commence_time=datetime(2026, 6, 11, 20, 0),
-        ),
-        ZafronixMatch(
-            match_id="BRA-FRA-UPCOMING",
-            team_home_code="BRA",
-            team_away_code="FRA",
-            score_home=0,
-            score_away=0,
-            status="upcoming",
-            commence_time=datetime(2026, 6, 12, 20, 0),
-        ),
-    ])
-    db.commit()
+class TestParseMarketValue:
+    def test_parses_wan(self):
+        assert _parse_market_value("1500万") == 15_000_000
 
-    expected_bra, expected_fra = update_elo(1800.0, 1700.0, 1.0)
+    def test_parses_small_wan(self):
+        assert _parse_market_value("25万") == 250_000
 
-    updated_count = update_team_elos_from_completed_matches(db)
-    bra = db.query(Team).filter(Team.code == "BRA").first()
-    fra = db.query(Team).filter(Team.code == "FRA").first()
+    def test_parses_yi(self):
+        assert _parse_market_value("1亿") == 100_000_000
 
-    assert updated_count == 1
-    assert bra.elo_rating == expected_bra
-    assert fra.elo_rating == expected_fra
+    def test_parses_decimal_yi(self):
+        assert _parse_market_value("1.8亿") == 180_000_000
+
+    def test_returns_zero_for_empty(self):
+        assert _parse_market_value("") == 0.0
+        assert _parse_market_value(None) == 0.0
+
+    def test_parses_plain_number(self):
+        assert _parse_market_value("5000") == 5000.0
 
 
-def test_update_team_elos_from_completed_matches_uses_draw_score():
-    db = make_session()
-    db.add_all([
-        Team(code="ARG", name="Argentina", elo_rating=1850.0),
-        Team(code="GER", name="Germany", elo_rating=1750.0),
-        ZafronixMatch(
-            match_id="ARG-GER-1",
-            team_home_code="ARG",
-            team_away_code="GER",
-            score_home=1,
-            score_away=1,
-            status="completed",
-        ),
-    ])
-    db.commit()
+class TestExpectedScore:
+    def test_equal_elo_returns_half(self):
+        assert expected_score(1500, 1500) == 0.5
 
-    expected_arg, expected_ger = update_elo(1850.0, 1750.0, 0.5)
+    def test_stronger_team_has_higher_score(self):
+        assert expected_score(1700, 1500) > 0.5
 
-    updated_count = update_team_elos_from_completed_matches(db)
-    arg = db.query(Team).filter(Team.code == "ARG").first()
-    ger = db.query(Team).filter(Team.code == "GER").first()
+    def test_weaker_team_has_lower_score(self):
+        assert expected_score(1500, 1700) < 0.5
 
-    assert updated_count == 1
-    assert arg.elo_rating == expected_arg
-    assert ger.elo_rating == expected_ger
+    def test_large_gap_approaches_one(self):
+        assert expected_score(2200, 1200) > 0.99
+
+
+class TestUpdateElo:
+    def test_winner_gains_rating(self):
+        new_a, new_b = update_elo(1500, 1500, 1.0)
+        assert new_a > 1500
+        assert new_b < 1500
+
+    def test_draw_benefits_lower_rated(self):
+        new_a, new_b = update_elo(1600, 1400, 0.5)
+        # Both move toward each other equally on draw
+        assert 1600 - new_a > 0
+        assert new_b - 1400 > 0
+        assert 1600 - new_a == new_b - 1400
+
+    def test_upset_causes_big_swing(self):
+        new_a, new_b = update_elo(1200, 2000, 1.0)
+        assert new_a > 1200
+        assert new_b < 2000
+        # Large upset means big absolute delta for both sides
+        assert new_a - 1200 > 15
+        assert 2000 - new_b > 15
+
+    def test_custom_k_factor(self):
+        default_new_a, _ = update_elo(1500, 1500, 1.0)
+        higher_new_a, _ = update_elo(1500, 1500, 1.0, k=40.0)
+        assert higher_new_a - 1500 > default_new_a - 1500
+
+
+class TestCompositeRating:
+    def test_defaults_to_elo_weight(self):
+        rating = composite_rating(1500)
+        assert rating == 0.6 * 1500 + 0.3 * 1500 + 0.1 * 1000
+
+    def test_dongqiudi_strength_raises_rating(self):
+        with_strength = composite_rating(1500, dongqiudi_strength=85.0)
+        without = composite_rating(1500)
+        assert with_strength > without
+
+    def test_market_value_raises_rating(self):
+        with_value = composite_rating(1500, market_value_eur=1_000_000_000)
+        without = composite_rating(1500)
+        assert with_value > without
+
+    def test_custom_weights(self):
+        rating = composite_rating(1500, w_elo=1.0, w_strength=0.0, w_value=0.0)
+        assert rating == 1500

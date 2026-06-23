@@ -171,8 +171,8 @@ class MonteCarloEngine:
         self.N = num_iterations
         self.rng = np.random.default_rng(seed)
         # Cache params from expected_goals defaults
-        self._avg_goals = 2.5
-        self._delta = 0.20
+        self._avg_goals = 2.20
+        self._delta = 0.50
 
     def _parameters_from_dict(self, data: dict | None) -> SimulationParameters:
         if not data:

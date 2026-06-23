@@ -180,7 +180,7 @@ def test_build_today_matches_response_with_prediction_and_odds(monkeypatch):
     monkeypatch.setattr("app.services.match_aggregator._query_matches_for_date", lambda db, target_date: [match])
     monkeypatch.setattr(
         "app.services.match_aggregator.engine.predict",
-        lambda a, b, match_type: {
+        lambda a, b, db=None, match_type="group": {
             "probabilities": {"win": 0.42, "draw": 0.28, "lose": 0.30},
             "system_confidence": 0.75,
         },
