@@ -192,6 +192,62 @@ def test_honor_match_randomness_changes_lambda_for_masked_rows():
     np.testing.assert_array_equal(adjusted_j[2:], lambda_j[2:])
 
 
+def test_discipline_state_initializes_per_iteration_and_team():
+    engine = MonteCarloEngine(num_iterations=4, seed=42)
+
+    yellow_risk, suspended_next = engine._init_discipline_state()
+
+    assert yellow_risk.shape == (4, 4)
+    assert suspended_next.shape == (4, 4)
+    assert yellow_risk.dtype == bool
+    assert suspended_next.dtype == bool
+
+
+def test_discipline_factors_apply_yellow_and_suspension_penalties():
+    engine = MonteCarloEngine(num_iterations=4, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+    points = np.array([
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+    ], dtype=np.int32)
+    yellow_risk = np.array([
+        [True, False, False, False],
+        [True, False, False, False],
+        [False, False, False, False],
+        [False, False, False, False],
+    ])
+    suspended_next = np.array([
+        [False, True, False, False],
+        [False, True, False, False],
+        [False, False, False, False],
+        [False, False, False, False],
+    ])
+
+    factor_i, factor_j = engine._calculate_discipline_factors(
+        points, yellow_risk, suspended_next, match_pair=(0, 1), parameters=parameters
+    )
+
+    np.testing.assert_array_equal(factor_i, np.array([0.96, 0.96, 1.0, 1.0]))
+    np.testing.assert_array_equal(factor_j, np.array([0.90, 0.90, 1.0, 1.0]))
+
+
+def test_update_discipline_state_can_create_future_suspension():
+    engine = MonteCarloEngine(num_iterations=4, seed=42)
+    yellow_risk, suspended_next = engine._init_discipline_state()
+    points = np.array([
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+        [6, 3, 0, 0],
+    ], dtype=np.int32)
+
+    engine._update_discipline_state(yellow_risk, suspended_next, points, match_pair=(0, 1))
+
+    assert yellow_risk[:, [0, 1]].any() or suspended_next[:, [0, 1]].any()
+
+
 def test_group_stage_ranking():
     """Group stage produces correct rankings based on points > GD > GF."""
     groups = {

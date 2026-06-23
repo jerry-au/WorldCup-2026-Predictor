@@ -289,6 +289,62 @@ class MonteCarloEngine:
             adjusted_j[mask] *= noise_j
         return adjusted_i, adjusted_j
 
+    def _init_discipline_state(self) -> tuple[np.ndarray, np.ndarray]:
+        return (
+            np.zeros((self.N, 4), dtype=bool),
+            np.zeros((self.N, 4), dtype=bool),
+        )
+
+    def _calculate_discipline_factors(
+        self,
+        points: np.ndarray,
+        yellow_risk: np.ndarray,
+        suspended_next: np.ndarray,
+        match_pair: tuple[int, int],
+        parameters: SimulationParameters,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        i, j = match_pair
+        return (
+            self._discipline_factor_for_team(points, yellow_risk, suspended_next, i, parameters),
+            self._discipline_factor_for_team(points, yellow_risk, suspended_next, j, parameters),
+        )
+
+    def _discipline_factor_for_team(
+        self,
+        points: np.ndarray,
+        yellow_risk: np.ndarray,
+        suspended_next: np.ndarray,
+        team_pos: int,
+        parameters: SimulationParameters,
+    ) -> np.ndarray:
+        factors = np.ones(self.N, dtype=np.float64)
+        safe = points[:, team_pos] >= 6
+        factors = np.where(
+            safe & yellow_risk[:, team_pos],
+            factors * parameters.discipline.yellow_card_caution_multiplier,
+            factors,
+        )
+        factors = np.where(
+            suspended_next[:, team_pos],
+            factors * parameters.discipline.key_player_suspension_multiplier,
+            factors,
+        )
+        return factors
+
+    def _update_discipline_state(
+        self,
+        yellow_risk: np.ndarray,
+        suspended_next: np.ndarray,
+        points: np.ndarray,
+        match_pair: tuple[int, int],
+    ) -> None:
+        for team_pos in match_pair:
+            safe = points[:, team_pos] >= 6
+            new_risk = self.rng.random(self.N) < np.where(safe, 0.08, 0.14)
+            new_suspension = yellow_risk[:, team_pos] & (self.rng.random(self.N) < 0.08)
+            yellow_risk[:, team_pos] |= new_risk
+            suspended_next[:, team_pos] |= new_suspension
+
     # ── Public API ────────────────────────────────────────────────
 
     def simulate(
@@ -401,6 +457,7 @@ class MonteCarloEngine:
             points = np.zeros((self.N, 4), dtype=np.int32)
             gd_arr = np.zeros((self.N, 4), dtype=np.int32)
             gf_arr = np.zeros((self.N, 4), dtype=np.int32)
+            yellow_risk, suspended_next = self._init_discipline_state()
 
             # Map team_code -> group-internal index (0-3) for this group
             code_to_internal = {all_codes[idx]: pos for pos, idx in enumerate(idxs)}
@@ -453,8 +510,13 @@ class MonteCarloEngine:
                     factor_i, factor_j = self._calculate_motivation_factors(
                         points, gd_arr, gf_arr, round_idx, (i, j), active_parameters
                     )
-                    lambda_i = np.full(self.N, λ_i, dtype=np.float64) * factor_i
-                    lambda_j = np.full(self.N, λ_j, dtype=np.float64) * factor_j
+                    discipline_i, discipline_j = self._calculate_discipline_factors(
+                        points, yellow_risk, suspended_next, (i, j), active_parameters
+                    )
+                    lambda_i = np.full(self.N, λ_i, dtype=np.float64) * factor_i * discipline_i
+                    lambda_j = np.full(self.N, λ_j, dtype=np.float64) * factor_j * discipline_j
+                    suspended_next[:, i] = False
+                    suspended_next[:, j] = False
                     honor_mask = (round_idx == 2) & (points[:, i] <= 1) & (points[:, j] <= 1)
                     lambda_i, lambda_j = self._apply_honor_match_randomness(
                         lambda_i, lambda_j, honor_mask, active_parameters.motivation.honor_match_randomness_multiplier
@@ -476,6 +538,7 @@ class MonteCarloEngine:
                     gd_arr[:, j] += g_j - g_i
                     gf_arr[:, i] += g_i
                     gf_arr[:, j] += g_j
+                    self._update_discipline_state(yellow_risk, suspended_next, points, (i, j))
 
             # Rank: points > gd > gf
             rank_score = (
