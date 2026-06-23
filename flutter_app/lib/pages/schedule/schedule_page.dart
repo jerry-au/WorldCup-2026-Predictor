@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/schedule_match.dart';
 import '../../providers/schedule_provider.dart';
 import '../../widgets/animated_widgets.dart';
@@ -16,18 +17,50 @@ class MatchStatus {
 class SchedulePage extends ConsumerStatefulWidget {
   const SchedulePage({super.key});
 
+  static const String defaultStatus = MatchStatus.upcoming;
+  static const List<String> statusFilterValues = [
+    MatchStatus.upcoming,
+    MatchStatus.live,
+    MatchStatus.completed,
+  ];
+
   @override
   ConsumerState<SchedulePage> createState() => _SchedulePageState();
 }
 
+String formatScheduleProbability(double probability) {
+  return '${(probability * 100).round()}%';
+}
+
+int _compareScheduleTimesDesc(DateTime? a, DateTime? b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return b.compareTo(a);
+}
+
+List<DateTime?> sortScheduleTimesForStatus(
+    List<DateTime?> times, String? status) {
+  if (status != MatchStatus.completed) return times;
+  return List<DateTime?>.of(times)..sort(_compareScheduleTimesDesc);
+}
+
+List<ScheduleMatch> _sortScheduleMatchesForStatus(
+    List<ScheduleMatch> matches, String? status) {
+  if (status != MatchStatus.completed) return matches;
+  return List<ScheduleMatch>.of(matches)
+    ..sort((a, b) => _compareScheduleTimesDesc(a.commenceTime, b.commenceTime));
+}
+
 class _SchedulePageState extends ConsumerState<SchedulePage> {
   String? _selectedStage;
-  String? _selectedStatus;
+  String? _selectedStatus = SchedulePage.defaultStatus;
   int _currentPage = 1;
   final List<ScheduleMatch> _allMatches = [];
   int _totalMatches = 0;
   int _totalPages = 1;
-  bool _hasInitialized = false;
+  bool _isLoadingNextPage = false;
+  final Set<int> _loadedPages = {};
 
   static const _stageOptions = [
     DropdownMenuItem(value: null, child: Text('全部阶段')),
@@ -39,10 +72,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   ];
 
   static const _statusOptions = [
-    DropdownMenuItem(value: null, child: Text('全部状态')),
-    DropdownMenuItem(value: 'upcoming', child: Text('未开始')),
-    DropdownMenuItem(value: 'live', child: Text('进行中')),
-    DropdownMenuItem(value: 'completed', child: Text('已结束')),
+    DropdownMenuItem(value: MatchStatus.upcoming, child: Text('未开始')),
+    DropdownMenuItem(value: MatchStatus.live, child: Text('进行中')),
+    DropdownMenuItem(value: MatchStatus.completed, child: Text('已结束')),
   ];
 
   void _resetPagination() {
@@ -52,14 +84,16 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
         _allMatches.clear();
         _totalMatches = 0;
         _totalPages = 1;
-        _hasInitialized = false;
+        _isLoadingNextPage = false;
+        _loadedPages.clear();
       });
     }
   }
 
   void _loadMore() {
-    if (_currentPage >= _totalPages) return;
+    if (_isLoadingNextPage || _currentPage >= _totalPages) return;
     setState(() {
+      _isLoadingNextPage = true;
       _currentPage++;
     });
   }
@@ -88,8 +122,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                       value: _selectedStage,
                       decoration: InputDecoration(
                         labelText: '阶段',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       isDense: true,
                       items: _stageOptions,
@@ -105,8 +141,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                       value: _selectedStatus,
                       decoration: InputDecoration(
                         labelText: '状态',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       isDense: true,
                       items: _statusOptions,
@@ -121,9 +159,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
             ),
           ),
         ),
-
         Expanded(
           child: _ScheduleMatchList(
+            key: ValueKey('${_selectedStage ?? ''}_${_selectedStatus ?? ''}'),
             filter: filter,
             allMatches: _allMatches,
             totalMatches: _totalMatches,
@@ -131,19 +169,23 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
             currentPage: _currentPage,
             onLoadMore: _loadMore,
             onDataLoaded: (data) {
-              // 只在首次加载或翻页时更新数据（不触发 setState 避免循环）
-              if (!_hasInitialized || data.page != 1) {
-                _hasInitialized = true;
-                if (mounted) {
-                  setState(() {
-                    if (data.page == 1) {
-                      _allMatches.clear();
-                    }
-                    _allMatches.addAll(data.matches);
-                    _totalMatches = data.total;
-                    _totalPages = data.totalPages;
-                  });
-                }
+              // 跳过已加载的页，避免每次 rebuild 重复追加数据导致死循环
+              if (_loadedPages.contains(data.page)) return;
+              _loadedPages.add(data.page);
+              if (mounted) {
+                setState(() {
+                  if (data.page == 1) {
+                    _allMatches.clear();
+                  }
+                  _allMatches.addAll(data.matches);
+                  if (_selectedStatus == MatchStatus.completed) {
+                    _allMatches.sort((a, b) => _compareScheduleTimesDesc(
+                        a.commenceTime, b.commenceTime));
+                  }
+                  _totalMatches = data.total;
+                  _totalPages = data.totalPages;
+                  _isLoadingNextPage = false;
+                });
               }
             },
           ),
@@ -153,8 +195,8 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   }
 }
 
-/// 比赛列表组件 - 独立组件避免无限循环
-class _ScheduleMatchList extends ConsumerWidget {
+/// 比赛列表组件 - 独立组件避免无限循环，滚动接近底部时自动预加载下一页
+class _ScheduleMatchList extends ConsumerStatefulWidget {
   final ScheduleFilter filter;
   final List<ScheduleMatch> allMatches;
   final int totalMatches;
@@ -164,6 +206,7 @@ class _ScheduleMatchList extends ConsumerWidget {
   final Function(AllMatchesResponse) onDataLoaded;
 
   const _ScheduleMatchList({
+    super.key,
     required this.filter,
     required this.allMatches,
     required this.totalMatches,
@@ -174,13 +217,48 @@ class _ScheduleMatchList extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final matchesAsync = ref.watch(allMatchesProvider(filter));
+  ConsumerState<_ScheduleMatchList> createState() => _ScheduleMatchListState();
+}
+
+class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    if (widget.currentPage >= widget.totalPages) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 240) {
+      widget.onLoadMore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matchesAsync = ref.watch(allMatchesProvider(widget.filter));
 
     return matchesAsync.when(
-      loading: () => allMatches.isEmpty
+      loading: () => widget.allMatches.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : _buildListView(allMatches, null),
+          : _buildListView(
+              _sortScheduleMatchesForStatus(
+                  widget.allMatches, widget.filter.status),
+              null,
+              ref,
+              isLoadingMore: true,
+            ),
       error: (err, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -190,7 +268,8 @@ class _ScheduleMatchList extends ConsumerWidget {
             Text('加载失败', style: TextStyle(color: Colors.grey.shade600)),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: () => ref.invalidate(allMatchesProvider(filter)),
+              onPressed: () =>
+                  ref.invalidate(allMatchesProvider(widget.filter)),
               child: const Text('重试'),
             ),
           ],
@@ -199,16 +278,23 @@ class _ScheduleMatchList extends ConsumerWidget {
       data: (data) {
         // 通知父组件数据已加载（延迟到下一帧避免循环）
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          onDataLoaded(data);
+          widget.onDataLoaded(data);
         });
 
-        final displayMatches = currentPage == 1 ? data.matches : allMatches;
-        return _buildListView(displayMatches, data);
+        final displayMatches =
+            widget.currentPage == 1 ? data.matches : widget.allMatches;
+        return _buildListView(
+          _sortScheduleMatchesForStatus(displayMatches, widget.filter.status),
+          data,
+          ref,
+        );
       },
     );
   }
 
-  Widget _buildListView(List<ScheduleMatch> matches, AllMatchesResponse? data) {
+  Widget _buildListView(
+      List<ScheduleMatch> matches, AllMatchesResponse? data, WidgetRef ref,
+      {bool isLoadingMore = false}) {
     if (matches.isEmpty) {
       return Center(
         child: Column(
@@ -216,7 +302,8 @@ class _ScheduleMatchList extends ConsumerWidget {
           children: [
             Icon(Icons.event_note, size: 64, color: Colors.grey.shade400),
             const SizedBox(height: 16),
-            Text('暂无赛程数据', style: TextStyle(color: Colors.grey.shade500, fontSize: 16)),
+            Text('暂无赛程数据',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 16)),
           ],
         ),
       );
@@ -226,24 +313,17 @@ class _ScheduleMatchList extends ConsumerWidget {
 
     return RefreshIndicator(
       onRefresh: () async {
-        // 通过回调通知父组件重置分页
+        ref.invalidate(allMatchesProvider(widget.filter));
       },
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemCount: matches.length + (hasMore ? 1 : 0),
+        itemCount: matches.length + (hasMore || isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= matches.length) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: OutlinedButton.icon(
-                onPressed: onLoadMore,
-                icon: const Icon(Icons.arrow_downward, size: 18),
-                label: Text('加载更多 (${totalMatches - matches.length} 场)'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
             );
           }
 
@@ -287,33 +367,42 @@ class _ScheduleMatchCard extends StatelessWidget {
                 children: [
                   // 阶段标签
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.blue.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       _getStageLabel(match.stage),
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue),
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue),
                     ),
                   ),
                   const SizedBox(width: 8),
                   // 状态标签
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(match.status ?? '').withOpacity(0.1),
+                      color:
+                          _getStatusColor(match.status ?? '').withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       _getStatusText(match.status ?? ''),
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _getStatusColor(match.status ?? '')),
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _getStatusColor(match.status ?? '')),
                     ),
                   ),
                   const Spacer(),
                   // 时间
                   Text(
-                    _formatTime(match.commenceTime ?? DateTime.now()),
+                    _formatMatchTime(match),
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   ),
                 ],
@@ -329,19 +418,31 @@ class _ScheduleMatchCard extends StatelessWidget {
                     child: Column(
                       children: [
                         ClipOval(
-                          child: Image.network(
-                            match.home.flagUrl ?? '',
+                          child: CachedNetworkImage(
+                            imageUrl: match.home.flagUrl ?? '',
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            errorWidget: (_, __, ___) => Container(
+                                width: 40,
+                                height: 40,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.flag,
+                                    size: 24, color: Colors.grey)),
+                            placeholder: (_, __) => Container(
+                                width: 40,
+                                height: 40,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.flag,
+                                    size: 24, color: Colors.grey)),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           match.home.nameCn ?? match.home.name,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w500),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -358,14 +459,21 @@ class _ScheduleMatchCard extends StatelessWidget {
                             children: [
                               Text(
                                 '${match.score?.home ?? "-"} : ${match.score?.away ?? "-"}',
-                                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.green),
+                                style: const TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green),
                               ),
-                              if (match.score != null && (match.score!.homeEt != null || match.score!.homePenalties != null))
+                              if (match.score != null &&
+                                  (match.score!.homeEt != null ||
+                                      match.score!.homePenalties != null))
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
                                   child: Text(
                                     _getExtraScoreText(match.score!),
-                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade600),
                                   ),
                                 ),
                             ],
@@ -373,12 +481,18 @@ class _ScheduleMatchCard extends StatelessWidget {
                         : Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('VS', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.grey.shade400)),
+                              Text('VS',
+                                  style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey.shade400)),
                               const SizedBox(height: 4),
                               if (match.prediction != null)
                                 Text(
-                                  '${match.prediction!.win.toStringAsFixed(0)}% / ${match.prediction!.draw.toStringAsFixed(0)}% / ${match.prediction!.lose.toStringAsFixed(0)}%',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                  '${formatScheduleProbability(match.prediction!.win)} / ${formatScheduleProbability(match.prediction!.draw)} / ${formatScheduleProbability(match.prediction!.lose)}',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade600),
                                 ),
                             ],
                           ),
@@ -389,19 +503,31 @@ class _ScheduleMatchCard extends StatelessWidget {
                     child: Column(
                       children: [
                         ClipOval(
-                          child: Image.network(
-                            match.away.flagUrl ?? '',
+                          child: CachedNetworkImage(
+                            imageUrl: match.away.flagUrl ?? '',
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(width: 40, height: 40, color: Colors.grey.shade200, child: const Icon(Icons.flag, size: 24, color: Colors.grey)),
+                            errorWidget: (_, __, ___) => Container(
+                                width: 40,
+                                height: 40,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.flag,
+                                    size: 24, color: Colors.grey)),
+                            placeholder: (_, __) => Container(
+                                width: 40,
+                                height: 40,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.flag,
+                                    size: 24, color: Colors.grey)),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           match.away.nameCn ?? match.away.name,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w500),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -421,13 +547,19 @@ class _ScheduleMatchCard extends StatelessWidget {
                     if (match.groupName != null) ...[
                       Icon(Icons.group, size: 14, color: Colors.grey.shade500),
                       const SizedBox(width: 4),
-                      Text(match.groupName!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Text(match.groupName!,
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade600)),
                     ],
                     if (match.stadium != null) ...[
                       const Spacer(),
-                      Icon(Icons.stadium, size: 14, color: Colors.grey.shade500),
+                      Icon(Icons.stadium,
+                          size: 14, color: Colors.grey.shade500),
                       const SizedBox(width: 4),
-                      Flexible(child: Text(match.stadium!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                      Flexible(
+                          child: Text(match.stadium!,
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey.shade600))),
                     ],
                   ],
                 ),
@@ -437,17 +569,27 @@ class _ScheduleMatchCard extends StatelessWidget {
               if (isLive) ...[
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.red.shade400]),
+                    gradient: LinearGradient(
+                        colors: [Colors.orange.shade400, Colors.red.shade400]),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(width: 8, height: 8, child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white)),
+                      SizedBox(
+                          width: 8,
+                          height: 8,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 1.5, color: Colors.white)),
                       SizedBox(width: 6),
-                      Text('进行中', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                      Text('进行中',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12)),
                     ],
                   ),
                 ),
@@ -459,11 +601,13 @@ class _ScheduleMatchCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.analytics_outlined, size: 14, color: Colors.blue.shade300),
+                    Icon(Icons.analytics_outlined,
+                        size: 14, color: Colors.blue.shade300),
                     const SizedBox(width: 4),
                     Text(
                       '点击查看详细预测',
-                      style: TextStyle(fontSize: 11, color: Colors.blue.shade300),
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.blue.shade300),
                     ),
                   ],
                 ),
@@ -489,32 +633,55 @@ class _ScheduleMatchCard extends StatelessWidget {
 
   String _getStageLabel(String? stage) {
     switch (stage) {
-      case 'group_stage': return '小组赛';
-      case 'round_of_16': return '1/8 决赛';
-      case 'quarter': return '1/4 决赛';
-      case 'semi': return '半决赛';
-      case 'final': return '决赛';
-      default: return stage ?? '';
+      case 'group_stage':
+        return '小组赛';
+      case 'round_of_16':
+        return '1/8 决赛';
+      case 'quarter':
+        return '1/4 决赛';
+      case 'semi':
+        return '半决赛';
+      case 'final':
+        return '决赛';
+      default:
+        return stage ?? '';
     }
   }
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case MatchStatus.completed: return Colors.green;
-      case MatchStatus.live: return Colors.orange;
-      default: return Colors.blue;
+      case MatchStatus.completed:
+        return Colors.green;
+      case MatchStatus.live:
+        return Colors.orange;
+      default:
+        return Colors.blue;
     }
   }
 
   String _getStatusText(String status) {
     switch (status) {
-      case MatchStatus.completed: return '已结束';
-      case MatchStatus.live: return '进行中';
-      default: return '未开始';
+      case MatchStatus.completed:
+        return '已结束';
+      case MatchStatus.live:
+        return '进行中';
+      default:
+        return '未开始';
     }
   }
 
-  String _formatTime(DateTime time) {
+  String _formatMatchTime(ScheduleMatch match) {
+    final time = match.commenceTime ?? DateTime.now();
+
+    // 已结束 / 进行中的比赛显示实际日期时间
+    if (match.status == MatchStatus.completed ||
+        match.status == MatchStatus.live) {
+      final h = time.hour.toString().padLeft(2, '0');
+      final m = time.minute.toString().padLeft(2, '0');
+      return '${time.month}/${time.day} $h:$m';
+    }
+
+    // 未开始的比赛显示相对时间
     final now = DateTime.now().toUtc();
     final diff = time.difference(now);
 

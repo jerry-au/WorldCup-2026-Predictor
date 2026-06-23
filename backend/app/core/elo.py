@@ -11,7 +11,7 @@ import re
 from typing import Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func as sa_func
+from sqlalchemy import Float, func as sa_func
 
 from ..models.team import Team
 from ..models.player_ability import DongqiudiPlayerAbility

@@ -16,5 +16,5 @@
 
 ## API Key
 
-- Zafronix: `zwc_free_3776717359a0cecfe09e0b8e`
+- Zafronix: `YOUR_ZAFRONIX_KEY_HERE`
 - 复制 `.env.example` 为 `.env` 并填入 Key

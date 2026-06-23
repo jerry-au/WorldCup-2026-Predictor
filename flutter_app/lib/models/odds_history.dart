@@ -1,4 +1,4 @@
-import 'today_match.dart';
+import 'match_common.dart';
 
 class OddsHistoryResponse {
   final String matchId;

@@ -6,6 +6,7 @@ Free tier: 10 req/min, per-competition scorers (top 10).
 from __future__ import annotations
 
 import httpx
+import logging
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,8 @@ from ..config import settings
 from ..models.player import Player
 from ..models.player_stats import PlayerSeasonStats
 from ..database import SessionLocal
+
+logger = logging.getLogger(__name__)
 
 FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
 
@@ -50,6 +53,7 @@ async def fetch_scorers(competition_code: str) -> dict:
             resp.raise_for_status()
             return resp.json()
         except Exception:
+            logger.warning("Failed to fetch scorers for %s", competition_code, exc_info=True)
             return {}
 
 
@@ -134,6 +138,7 @@ async def fetch_competition_standings(competition_code: str) -> dict:
             resp.raise_for_status()
             return resp.json()
         except Exception:
+            logger.warning("Failed to fetch standings for %s", competition_code, exc_info=True)
             return {}
 
 
@@ -153,6 +158,7 @@ class FootballDataFetcher:
             resp.raise_for_status()
             return resp.json()
         except Exception:
+            logger.warning("Failed to fetch scorers for %s", competition_code, exc_info=True)
             return {}
 
     async def refresh_player_data(self):

@@ -6,6 +6,7 @@ Updates Team.fifa_rank in the database.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
@@ -13,6 +14,8 @@ import httpx
 from sqlalchemy.orm import Session
 
 from ..models.team import Team
+
+logger = logging.getLogger(__name__)
 
 FIFA_RANKING_URL = "https://www.fifa.com/fifa-world-ranking/men"
 FIFA_API_URL = "https://inside.fifa.com/api/rankings/men"
@@ -66,7 +69,7 @@ def fetch_rankings_from_api(client: httpx.Client | None = None) -> list[dict]:
                     })
             return rankings
     except Exception:
-        pass
+        logger.warning("Failed to fetch FIFA rankings from API", exc_info=True)
     finally:
         if close_client:
             client.close()
@@ -114,7 +117,7 @@ def fetch_rankings_from_web(client: httpx.Client | None = None) -> list[dict]:
 
         return rankings
     except Exception:
-        pass
+        logger.warning("Failed to fetch FIFA rankings from web", exc_info=True)
     finally:
         if close_client:
             client.close()

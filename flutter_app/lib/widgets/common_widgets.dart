@@ -144,8 +144,16 @@ class ProbabilityBar extends StatelessWidget {
 class SectionTitle extends StatelessWidget {
   final String title;
   final Widget? trailing;
+  final String? subtitle;
+  final IconData? icon;
 
-  const SectionTitle({super.key, required this.title, this.trailing});
+  const SectionTitle({
+    super.key,
+    required this.title,
+    this.trailing,
+    this.subtitle,
+    this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -153,11 +161,27 @@ class SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          if (icon != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Icon(icon, color: Colors.orange.shade700, size: 20),
+            ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
+              ],
+            ),
           ),
-          const Spacer(),
           if (trailing != null) trailing!,
         ],
       ),

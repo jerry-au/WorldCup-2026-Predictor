@@ -1,8 +1,3 @@
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.database import Base
 from app.models.team import Team
 from app.models.player import Player
 from app.services.dongqiudi_national_roster import (
@@ -11,18 +6,6 @@ from app.services.dongqiudi_national_roster import (
     normalize_diacritics,
     try_name_reversal,
 )
-
-
-@pytest.fixture
-def db_session():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
-    Session = sessionmaker(bind=engine)
-    db = Session()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 def seed_team_with_players(db, duplicate_jersey=False):

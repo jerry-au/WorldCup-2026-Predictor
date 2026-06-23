@@ -1,23 +1,13 @@
 from datetime import datetime
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.database import Base
 from app.models.odds_data import MatchOddsHistory, MatchOddsSummary
 from app.models.team import Team
 from app.services.match_aggregator import build_odds_history_response
 from app.services.odds import OddsClient
 
 
-def make_session():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
-    return sessionmaker(autocommit=False, autoflush=False, bind=engine)()
-
-
-def test_update_summary_records_average_odds_history():
-    db = make_session()
+def test_update_summary_records_average_odds_history(db_session):
+    db = db_session
     db.add_all([
         Team(code="BRA", name="Brazil"),
         Team(code="FRA", name="France"),
@@ -50,8 +40,8 @@ def test_update_summary_records_average_odds_history():
     assert history.provider_count == 1
 
 
-def test_update_summary_skips_history_when_average_odds_unchanged():
-    db = make_session()
+def test_update_summary_skips_history_when_average_odds_unchanged(db_session):
+    db = db_session
     db.add_all([
         Team(code="BRA", name="Brazil"),
         Team(code="FRA", name="France"),
@@ -78,8 +68,8 @@ def test_update_summary_skips_history_when_average_odds_unchanged():
     assert db.query(MatchOddsHistory).count() == 1
 
 
-def test_build_odds_history_response_resolves_match_and_orders_points():
-    db = make_session()
+def test_build_odds_history_response_resolves_match_and_orders_points(db_session):
+    db = db_session
     db.add_all([
         Team(code="BRA", name="Brazil"),
         Team(code="FRA", name="France"),

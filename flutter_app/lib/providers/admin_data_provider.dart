@@ -91,7 +91,7 @@ class TaskProgress {
 // 每个卡片独立追踪自己的进度，互不干扰
 
 final cardProgressProviderFamily =
-    StateNotifierProvider.family<CardProgressNotifier, TaskProgress?, String>((ref, cardId) {
+    StateNotifierProvider.autoDispose.family<CardProgressNotifier, TaskProgress?, String>((ref, cardId) {
   return CardProgressNotifier(ref, cardId);
 });
 
@@ -99,6 +99,7 @@ class CardProgressNotifier extends StateNotifier<TaskProgress?> {
   final Ref ref;
   final String cardId;
   Timer? _pollTimer;
+  int _failures = 0;
 
   CardProgressNotifier(this.ref, this.cardId) : super(null);
 
@@ -144,15 +145,26 @@ class CardProgressNotifier extends StateNotifier<TaskProgress?> {
         errorMessage: data['error_message'],
       );
 
+      _failures = 0;
       state = progress;
 
-      // Stop polling when done - 但保留结果状态不清理！
+      // Stop polling when done
       if (progress.isSuccess || progress.isFailed || progress.status == 'not_found') {
         _pollTimer?.cancel();
         _pollTimer = null;
       }
     } catch (e) {
-      // Keep current state on error
+      _failures++;
+      if (_failures >= 5) {
+        _pollTimer?.cancel();
+        _pollTimer = null;
+        state = TaskProgress(
+          taskId: state?.taskId ?? '',
+          status: 'failed',
+          progress: 0.0,
+          errorMessage: '轮询超时，请检查网络后重试',
+        );
+      }
     }
   }
 
@@ -172,7 +184,7 @@ class CardProgressNotifier extends StateNotifier<TaskProgress?> {
 
 /// 每个卡片的持久化操作结果（成功/失败/记录数/时间）
 final cardResultProviderFamily =
-    StateNotifierProvider.family<CardResultNotifier, CardOperationResult?, String>((ref, cardId) {
+    StateNotifierProvider.autoDispose.family<CardResultNotifier, CardOperationResult?, String>((ref, cardId) {
   return CardResultNotifier();
 });
 

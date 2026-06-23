@@ -41,11 +41,31 @@ def _resolve_team_name_cn(db: Session, team: Team | None, code: str, fallback_cn
     return fallback_cn
 
 
+def _batch_preload_teams_and_odds(db: Session, matches) -> tuple[dict, dict]:
+    """批量预加载：收集所有涉及的 team_code，一次性查询 Team 和 OddsSummary。"""
+    codes: set[str] = set()
+    for m in matches:
+        codes.add(m.team_home_code)
+        codes.add(m.team_away_code)
+    if not codes:
+        return {}, {}
+    teams = {t.code: t for t in db.query(Team).filter(Team.code.in_(codes)).all()}
+    odds_map: dict[tuple, MatchOddsSummary] = {}
+    summaries = db.query(MatchOddsSummary).filter(
+        MatchOddsSummary.team_a_code.in_(codes),
+        MatchOddsSummary.team_b_code.in_(codes),
+    ).all()
+    for s in summaries:
+        odds_map[(s.team_a_code, s.team_b_code)] = s
+    return teams, odds_map
+
+
 def build_today_matches_response(db: Session, target_date: date | None = None) -> dict:
     if target_date is None:
         target_date = date.today()
     matches = _query_matches_for_date(db, target_date)
-    items = [_build_match_item(db, match) for match in matches]
+    teams, odds_map = _batch_preload_teams_and_odds(db, matches)
+    items = [_build_match_item(db, match, teams, odds_map) for match in matches]
     updated_candidates = [match.scraped_at for match in matches if getattr(match, "scraped_at", None)]
     return {
         "matches": items,
@@ -59,12 +79,17 @@ def build_today_matches_response(db: Session, target_date: date | None = None) -
 
 def build_all_matches_response(db: Session, stage: str | None = None, status: str | None = None, page: int = 1, page_size: int = 20) -> dict:
     """获取所有比赛赛程，包括已结束比赛的比分（支持分页）"""
-    query = db.query(DongqiudiMatch).order_by(DongqiudiMatch.commence_time.asc())
+    query = db.query(DongqiudiMatch)
 
     if stage:
         query = query.filter(DongqiudiMatch.stage == stage)
     if status:
         query = query.filter(DongqiudiMatch.status == status)
+
+    if status == "completed":
+        query = query.order_by(DongqiudiMatch.commence_time.desc())
+    else:
+        query = query.order_by(DongqiudiMatch.commence_time.asc())
 
     # 获取总数
     total = query.count()
@@ -73,7 +98,8 @@ def build_all_matches_response(db: Session, stage: str | None = None, status: st
     offset = (page - 1) * page_size
     matches = query.offset(offset).limit(page_size).all()
 
-    items = [_build_full_match_item(db, match) for match in matches]
+    teams, odds_map = _batch_preload_teams_and_odds(db, matches)
+    items = [_build_full_match_item(db, match, teams, odds_map) for match in matches]
 
     return {
         "matches": items,
@@ -122,9 +148,17 @@ def _query_matches_for_date(
     return matches
 
 
-def _build_match_item(db: Session, match) -> dict:
-    team_a = db.query(Team).filter(Team.code == match.team_home_code).first()
-    team_b = db.query(Team).filter(Team.code == match.team_away_code).first()
+def _build_match_item(
+    db: Session, match,
+    teams: dict[str, Team] | None = None,
+    odds_cache: dict | None = None,
+) -> dict:
+    if teams is None:
+        team_a = db.query(Team).filter(Team.code == match.team_home_code).first()
+        team_b = db.query(Team).filter(Team.code == match.team_away_code).first()
+    else:
+        team_a = teams.get(match.team_home_code)
+        team_b = teams.get(match.team_away_code)
     prediction = None
     if team_a and team_b:
         pred = engine.predict(team_a, team_b, db=db, match_type=_normalize_match_type(match.stage))
@@ -135,7 +169,7 @@ def _build_match_item(db: Session, match) -> dict:
             "lose": probs["lose"],
             "system_confidence": pred["system_confidence"],
         }
-    odds = _get_odds_summary(db, match.team_home_code, match.team_away_code)
+    odds = _get_odds_summary(db, match.team_home_code, match.team_away_code, odds_cache)
     return {
         "match_id": match.match_id,
         "home": {
@@ -158,10 +192,18 @@ def _build_match_item(db: Session, match) -> dict:
     }
 
 
-def _build_full_match_item(db: Session, match) -> dict:
+def _build_full_match_item(
+    db: Session, match,
+    teams: dict[str, Team] | None = None,
+    odds_cache: dict | None = None,
+) -> dict:
     """构建完整的比赛数据，包括比分"""
-    team_a = db.query(Team).filter(Team.code == match.team_home_code).first()
-    team_b = db.query(Team).filter(Team.code == match.team_away_code).first()
+    if teams is None:
+        team_a = db.query(Team).filter(Team.code == match.team_home_code).first()
+        team_b = db.query(Team).filter(Team.code == match.team_away_code).first()
+    else:
+        team_a = teams.get(match.team_home_code)
+        team_b = teams.get(match.team_away_code)
 
     # 构建比分信息
     score = None
@@ -191,7 +233,7 @@ def _build_full_match_item(db: Session, match) -> dict:
             "system_confidence": pred["system_confidence"],
         }
 
-    odds = _get_odds_summary(db, match.team_home_code, match.team_away_code)
+    odds = _get_odds_summary(db, match.team_home_code, match.team_away_code, odds_cache)
 
     return {
         "match_id": match.match_id,
@@ -280,8 +322,19 @@ def _reverse_history_point(point: MatchOddsHistory) -> dict:
     }
 
 
-def _get_odds_summary(db: Session, team_a_code: str | None, team_b_code: str | None) -> dict | None:
+def _get_odds_summary(
+    db: Session, team_a_code: str | None, team_b_code: str | None,
+    cache: dict | None = None,
+) -> dict | None:
     if not team_a_code or not team_b_code:
+        return None
+    if cache is not None:
+        summary = cache.get((team_a_code, team_b_code))
+        if summary:
+            return _forward_odds(summary)
+        summary = cache.get((team_b_code, team_a_code))
+        if summary:
+            return _reverse_odds(summary)
         return None
     summary = (
         db.query(MatchOddsSummary)

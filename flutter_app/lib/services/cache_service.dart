@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 class CacheService {
   static final Map<String, _CacheEntry> _memoryCache = {};
   static const int _defaultMaxAgeMinutes = 30;
+  static const int _maxEntries = 500;
 
   static T? get<T>(String key) {
     final entry = _memoryCache[key];
@@ -18,6 +19,12 @@ class CacheService {
   }
 
   static void set<T>(String key, T value, {Duration? maxAge}) {
+    if (_memoryCache.length >= _maxEntries) {
+      // 移除最老的条目
+      final oldest = _memoryCache.entries
+          .reduce((a, b) => a.value.timestamp.isBefore(b.value.timestamp) ? a : b);
+      _memoryCache.remove(oldest.key);
+    }
     _memoryCache[key] = _CacheEntry(
       value: value,
       timestamp: DateTime.now(),
@@ -39,7 +46,7 @@ class CacheService {
 
   static int get size => _memoryCache.length;
 
-  static String generateKey(String... parts) {
+  static String generateKey(List<String> parts) {
     return parts.join(':');
   }
 }
@@ -102,11 +109,11 @@ class RequestCache {
   static const Duration mediumCache = Duration(minutes: 30);
   static const Duration longCache = Duration(hours: 2);
 
-  static String teamDetail(String code) => CacheService.generateKey('team', code);
+  static String teamDetail(String code) => CacheService.generateKey(['team', code]);
   static String prediction(String a, String b, String type) =>
-      CacheService.generateKey('pred', a, b, type);
-  static String odds(String a, String b) => CacheService.generateKey('odds', a, b);
-  static String valueBets(double minEv) => CacheService.generateKey('valuebets', minEv.toString());
+      CacheService.generateKey(['pred', a, b, type]);
+  static String odds(String a, String b) => CacheService.generateKey(['odds', a, b]);
+  static String valueBets(double minEv) => CacheService.generateKey(['valuebets', minEv.toString()]);
   static String discrepancies(double minDelta) =>
-      CacheService.generateKey('discrepancies', minDelta.toString());
+      CacheService.generateKey(['discrepancies', minDelta.toString()]);
 }

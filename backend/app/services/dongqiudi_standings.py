@@ -7,6 +7,7 @@ Reuses team-matching infrastructure from the national roster scraper.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime
 from typing import Any
@@ -21,6 +22,8 @@ from ..services.dongqiudi_national_roster import (
     STANDINGS_URL,
     REQUEST_DELAY,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _json_dumps(value: Any) -> str:
@@ -77,7 +80,7 @@ def fetch_standings_data(
             if isinstance(data, dict) and data.get("code") == 0:
                 return data.get("data", []) or []
     except Exception:
-        pass
+        logger.warning("Failed to fetch standings data from Dongqiudi API", exc_info=True)
 
     return []
 

@@ -824,6 +824,7 @@ class MonteCarloEngine:
 
         For each bracket slot, finds the most frequent team across all N
         iterations and computes their head-to-head win probability.
+        Teams are de-duplicated within each round so no team appears twice.
         """
         bracket: List[BracketSlot] = []
 
@@ -831,40 +832,65 @@ class MonteCarloEngine:
             values, counts = np.unique(arr, return_counts=True)
             return values[int(np.argmax(counts))]
 
+        def _mode_unique(arr: np.ndarray, used: set[int]) -> int:
+            """Most frequent team in arr, excluding already-used teams."""
+            values, counts = np.unique(arr, return_counts=True)
+            order = np.argsort(-counts)
+            for idx in order:
+                v = int(values[idx])
+                if v not in used:
+                    return v
+            return _mode(arr)
+
         def _h2h(ta: int, tb: int) -> Tuple[float, float]:
             return self._h2h_prob(float(all_comps[ta]), float(all_comps[tb]))
 
-        # R32: direct from group-based slot assignments
+        # R32: direct from group-based slot assignments, enforce uniqueness
+        r32_used: set[int] = set()
         for mi in range(16):
-            ta = _mode(r32_teams[:, mi, 0])
-            tb = _mode(r32_teams[:, mi, 1])
+            ta = _mode_unique(r32_teams[:, mi, 0], r32_used)
+            r32_used.add(ta)
+            tb = _mode_unique(r32_teams[:, mi, 1], r32_used)
+            r32_used.add(tb)
             pa, pb = _h2h(ta, tb)
             bracket.append(BracketSlot("round_32", mi, all_codes[ta], all_codes[tb], pa, pb))
 
         # R16: most common winners advance from adjacent R32 matches
+        r16_used: set[int] = set()
         for mi in range(8):
-            ta = _mode(r32_w[:, mi * 2])
-            tb = _mode(r32_w[:, mi * 2 + 1])
+            ta = _mode_unique(r32_w[:, mi * 2], r16_used)
+            r16_used.add(ta)
+            tb = _mode_unique(r32_w[:, mi * 2 + 1], r16_used)
+            r16_used.add(tb)
             pa, pb = _h2h(ta, tb)
             bracket.append(BracketSlot("round_16", mi, all_codes[ta], all_codes[tb], pa, pb))
 
         # QF
+        qf_used: set[int] = set()
         for mi in range(4):
-            ta = _mode(r16_w[:, mi * 2])
-            tb = _mode(r16_w[:, mi * 2 + 1])
+            ta = _mode_unique(r16_w[:, mi * 2], qf_used)
+            qf_used.add(ta)
+            tb = _mode_unique(r16_w[:, mi * 2 + 1], qf_used)
+            qf_used.add(tb)
             pa, pb = _h2h(ta, tb)
             bracket.append(BracketSlot("quarter", mi, all_codes[ta], all_codes[tb], pa, pb))
 
         # SF
+        sf_used: set[int] = set()
         for mi in range(2):
-            ta = _mode(qf_w[:, mi * 2])
-            tb = _mode(qf_w[:, mi * 2 + 1])
+            ta = _mode_unique(qf_w[:, mi * 2], sf_used)
+            sf_used.add(ta)
+            tb = _mode_unique(qf_w[:, mi * 2 + 1], sf_used)
+            sf_used.add(tb)
             pa, pb = _h2h(ta, tb)
             bracket.append(BracketSlot("semi", mi, all_codes[ta], all_codes[tb], pa, pb))
 
         # Final
-        ta = _mode(sf_w[:, 0])
-        tb = _mode(sf_w[:, 1])
+        final_used: set[int] = set()
+        ta = _mode_unique(sf_w[:, 0], final_used)
+        final_used.add(ta)
+        tb = _mode_unique(sf_w[:, 1], final_used)
+        final_used.add(tb)
         pa, pb = _h2h(ta, tb)
         bracket.append(BracketSlot("final", 0, all_codes[ta], all_codes[tb], pa, pb))
 

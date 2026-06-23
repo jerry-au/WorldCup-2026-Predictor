@@ -9,13 +9,12 @@ class ApiConfig {
   static const String _localUrl = 'http://127.0.0.1:9000';
 
   static String get baseUrl {
-    // 使用远程服务器
-    return _serverUrl;
+    // 支持通过 --dart-define=API_BASE_URL=... 覆盖，用于测试前端
+    const override = String.fromEnvironment('API_BASE_URL');
+    if (override.isNotEmpty) return override;
 
-    // 如需切换回本地开发，注释上面一行，取消下面注释:
-    // if (kIsWeb) return _localUrl;
-    // if (Platform.isAndroid) return 'http://10.0.2.2:9000';
-    // return _localUrl;
+    // 默认使用远程服务器（生产设置）
+    return _serverUrl;
   }
 
   static const String apiPrefix = '/api/v1';

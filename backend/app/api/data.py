@@ -1,11 +1,12 @@
 """Data management API — trigger and monitor batch fetching, data refresh status."""
 
 import asyncio
+import logging
 import uuid
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Body
 
 from ..database import get_db, SessionLocal
 from ..services.fetcher import DataFetcher
@@ -18,6 +19,8 @@ from ..tasks.scheduler import (
     refresh_elo_rankings,
 )
 from ..models.data_refresh_log import DataRefreshLog
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/data", tags=["data"])
 
@@ -310,10 +313,10 @@ def fetch_status():
     ).count()
     # standings table may not exist yet
     try:
-        from ..models.dongqiudi_standing import DongqiudiStanding
+        from ..models.dongqiudi_standings import DongqiudiStanding
         dqd_standings = db2.query(DongqiudiStanding).count()
     except Exception:
-        pass
+        logger.warning("Failed to import or query DongqiudiStanding", exc_info=True)
     odds_count = db2.query(MatchOddsSummary).count()
     db2.close()
 
@@ -363,7 +366,7 @@ def refresh_status():
 
 
 @router.post("/refresh/trigger")
-def trigger_refresh(source: str = "all"):
+def trigger_refresh(source: str = Body("all")):
     """Manually trigger a data refresh for specified source or all sources."""
     from ..tasks.scheduler import (
         precompute_recommendations,

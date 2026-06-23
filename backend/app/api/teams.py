@@ -87,14 +87,20 @@ def get_team(code: str, db: Session = Depends(get_db)):
         if local_flag.exists():
             flag_url = f"/static/images/{team.local_flag_path}"
 
+    # 批量加载所有球员的赛季统计（避免 N+1 查询）
+    player_ids = [p.id for p in team.players]
+    all_stats = (
+        db.query(DongqiudiPlayerSeasonSummary)
+        .filter(DongqiudiPlayerSeasonSummary.matched_player_id.in_(player_ids))
+        .all()
+    )
+    stats_by_player: dict[int, list] = {}
+    for s in all_stats:
+        stats_by_player.setdefault(s.matched_player_id, []).append(s)
+
     players_out = []
     for p in team.players:
-        # 读取懂球帝赛季统计数据
-        dqd_stats = (
-            db.query(DongqiudiPlayerSeasonSummary)
-            .filter(DongqiudiPlayerSeasonSummary.matched_player_id == p.id)
-            .all()
-        )
+        dqd_stats = stats_by_player.get(p.id, [])
         stats_out = [
             {
                 "category": s.category,

@@ -3,7 +3,7 @@ import '../services/providers.dart';
 import '../models/schedule_match.dart';
 
 /// 获取所有赛程的 Provider（支持分页）
-final allMatchesProvider = FutureProvider.family<AllMatchesResponse, ScheduleFilter>((ref, filter) async {
+final allMatchesProvider = FutureProvider.autoDispose.family<AllMatchesResponse, ScheduleFilter>((ref, filter) async {
   final api = ref.watch(apiServiceProvider);
   final json = await api.getAllMatches(
     stage: filter.stage,

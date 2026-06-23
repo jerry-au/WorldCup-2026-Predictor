@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/prediction.dart';
 import '../services/providers.dart';
 
-final predictionProvider = FutureProvider.family<MatchPrediction, PredictionParams>((ref, params) async {
+final predictionProvider = FutureProvider.autoDispose.family<MatchPrediction, PredictionParams>((ref, params) async {
   final api = ref.read(apiServiceProvider);
   final data = await api.predictMatch(
     teamACode: params.teamACode,

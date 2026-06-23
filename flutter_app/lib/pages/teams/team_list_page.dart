@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../config/api_config.dart';
 import '../../models/team.dart';
 import '../../providers/teams_provider.dart';
 import '../../widgets/common_widgets.dart';
@@ -171,7 +173,7 @@ class _TeamCard extends StatelessWidget {
 
   String _imagePathToUrl(String path) {
     if (path.startsWith('http')) return path;
-    return 'http://127.0.0.1:9000$path';
+    return '${ApiConfig.baseUrl}$path';
   }
 
   @override
@@ -185,7 +187,7 @@ class _TeamCard extends StatelessWidget {
           child: CircleAvatar(
             backgroundColor: Theme.of(context).colorScheme.primaryContainer,
             backgroundImage: team.flagUrl != null
-                ? NetworkImage(_imagePathToUrl(team.flagUrl!))
+                ? CachedNetworkImageProvider(_imagePathToUrl(team.flagUrl!))
                 : null,
             child: team.flagUrl == null
                 ? Text(

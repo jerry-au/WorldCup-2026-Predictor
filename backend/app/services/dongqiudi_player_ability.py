@@ -15,6 +15,7 @@ Data includes:
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from typing import Any
@@ -24,6 +25,8 @@ from sqlalchemy.orm import Session
 
 from ..models.dongqiudi_data import DongqiudiPlayerData
 from ..models.player_ability import DongqiudiPlayerAbility
+
+logger = logging.getLogger(__name__)
 
 ABILITY_API_URL = (
     "https://sport-data.dongqiudi.com/soccer/data/sofifa/v1/player_ability/{ability_id}?player_type="
@@ -124,6 +127,7 @@ def fetch_ability_id(person_id: str, client: httpx.Client) -> str | None:
         data = resp.json()
         return _extract_ability_id(data)
     except Exception:
+        logger.warning("Failed to fetch ability_id for person_id=%s", person_id, exc_info=True)
         return None
 
 

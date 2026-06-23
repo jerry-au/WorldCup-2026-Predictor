@@ -12,6 +12,7 @@ League CID mapping:
   SA=116 意甲 | FL1=158 法甲 | ELC=14 英冠
 """
 
+import logging
 import re
 import time
 
@@ -20,6 +21,8 @@ import httpx
 from ..models.player import Player
 from ..models.player_stats import PlayerSeasonStats
 from ..models.scraped_data import ScrapedPlayerData
+
+logger = logging.getLogger(__name__)
 
 LEAGUE_CID = {
     "PL": 82, "PD": 119, "BL1": 92,
@@ -153,6 +156,7 @@ def scrape_league(cid: int, db_session) -> dict:
         try:
             detail = scrape_player_detail(item["player_id"])
         except Exception:
+            logger.warning("Failed to scrape player detail for player_id=%s", item.get("player_id"), exc_info=True)
             continue
         if not detail:
             continue
