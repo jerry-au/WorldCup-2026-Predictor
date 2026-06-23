@@ -17,13 +17,20 @@ class MatchStatus {
 class SchedulePage extends ConsumerStatefulWidget {
   const SchedulePage({super.key});
 
+  static const String defaultStatus = MatchStatus.upcoming;
+  static const List<String> statusFilterValues = [
+    MatchStatus.upcoming,
+    MatchStatus.live,
+    MatchStatus.completed,
+  ];
+
   @override
   ConsumerState<SchedulePage> createState() => _SchedulePageState();
 }
 
 class _SchedulePageState extends ConsumerState<SchedulePage> {
   String? _selectedStage;
-  String? _selectedStatus;
+  String? _selectedStatus = SchedulePage.defaultStatus;
   int _currentPage = 1;
   final List<ScheduleMatch> _allMatches = [];
   int _totalMatches = 0;
@@ -40,10 +47,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   ];
 
   static const _statusOptions = [
-    DropdownMenuItem(value: null, child: Text('全部状态')),
-    DropdownMenuItem(value: 'upcoming', child: Text('未开始')),
-    DropdownMenuItem(value: 'live', child: Text('进行中')),
-    DropdownMenuItem(value: 'completed', child: Text('已结束')),
+    DropdownMenuItem(value: MatchStatus.upcoming, child: Text('未开始')),
+    DropdownMenuItem(value: MatchStatus.live, child: Text('进行中')),
+    DropdownMenuItem(value: MatchStatus.completed, child: Text('已结束')),
   ];
 
   void _resetPagination() {
@@ -154,8 +160,8 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   }
 }
 
-/// 比赛列表组件 - 独立组件避免无限循环，支持自动滚动到最近未开始比赛
-class _ScheduleMatchList extends ConsumerStatefulWidget {
+/// 比赛列表组件 - 独立组件避免无限循环
+class _ScheduleMatchList extends ConsumerWidget {
   final ScheduleFilter filter;
   final List<ScheduleMatch> allMatches;
   final int totalMatches;
@@ -176,43 +182,13 @@ class _ScheduleMatchList extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_ScheduleMatchList> createState() => _ScheduleMatchListState();
-}
-
-class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
-  final ScrollController _scrollController = ScrollController();
-  bool _hasScrolledToUpcoming = false;
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _scrollToFirstUpcoming(List<ScheduleMatch> matches) {
-    if (_hasScrolledToUpcoming || matches.isEmpty) return;
-    final index = matches.indexWhere((m) => m.status != MatchStatus.completed);
-    if (index <= 0) return;
-    _hasScrolledToUpcoming = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          index * 100.0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final matchesAsync = ref.watch(allMatchesProvider(widget.filter));
+  Widget build(BuildContext context, WidgetRef ref) {
+    final matchesAsync = ref.watch(allMatchesProvider(filter));
 
     return matchesAsync.when(
-      loading: () => widget.allMatches.isEmpty
+      loading: () => allMatches.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : _buildListView(widget.allMatches, null, ref),
+          : _buildListView(allMatches, null, ref),
       error: (err, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -222,7 +198,7 @@ class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
             Text('加载失败', style: TextStyle(color: Colors.grey.shade600)),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: () => ref.invalidate(allMatchesProvider(widget.filter)),
+              onPressed: () => ref.invalidate(allMatchesProvider(filter)),
               child: const Text('重试'),
             ),
           ],
@@ -231,16 +207,10 @@ class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
       data: (data) {
         // 通知父组件数据已加载（延迟到下一帧避免循环）
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          widget.onDataLoaded(data);
+          onDataLoaded(data);
         });
 
-        final displayMatches = widget.currentPage == 1 ? data.matches : widget.allMatches;
-
-        // 首次加载完成后滚动到最近未开始比赛
-        if (widget.currentPage == 1 && !_hasScrolledToUpcoming) {
-          _scrollToFirstUpcoming(displayMatches);
-        }
-
+        final displayMatches = currentPage == 1 ? data.matches : allMatches;
         return _buildListView(displayMatches, data, ref);
       },
     );
@@ -264,10 +234,9 @@ class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
 
     return RefreshIndicator(
       onRefresh: () async {
-        ref.invalidate(allMatchesProvider(widget.filter));
+        ref.invalidate(allMatchesProvider(filter));
       },
       child: ListView.builder(
-        controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         itemCount: matches.length + (hasMore ? 1 : 0),
         itemBuilder: (context, index) {
@@ -275,9 +244,9 @@ class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: OutlinedButton.icon(
-                onPressed: widget.onLoadMore,
+                onPressed: onLoadMore,
                 icon: const Icon(Icons.arrow_downward, size: 18),
-                label: Text('加载更多 (${widget.totalMatches - matches.length} 场)'),
+                label: Text('加载更多 (${totalMatches - matches.length} 场)'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
