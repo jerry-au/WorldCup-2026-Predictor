@@ -5,6 +5,7 @@ from .player_stats import PlayerSeasonStats
 from .scraped_data import ScrapedPlayerData
 from .dongqiudi_data import DongqiudiTeamData, DongqiudiCoachData, DongqiudiPlayerData
 from .simulation import SimulationRun, SimulationResult, KnockoutBracket
+from .simulation_preset import SimulationPreset
 from .recommendation_cache import RecommendationCache
 from .odds_data import Bookmaker, MatchOdds, MatchOddsHistory, MatchOddsSummary
 from .data_refresh_log import DataRefreshLog, DataSourceStatus
@@ -22,6 +23,7 @@ __all__ = [
     "SimulationRun",
     "SimulationResult",
     "KnockoutBracket",
+    "SimulationPreset",
     "RecommendationCache",
     "Bookmaker",
     "MatchOdds",
