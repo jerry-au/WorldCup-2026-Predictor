@@ -112,6 +112,11 @@ class MonteCarloEngine:
     """
 
     GROUP_MATCHES = [(0, 1), (2, 3), (0, 2), (1, 3), (0, 3), (1, 2)]
+    GROUP_ROUNDS = [
+        [(0, 1), (2, 3)],
+        [(0, 2), (1, 3)],
+        [(0, 3), (1, 2)],
+    ]
     GROUP_NAMES = [chr(ord('A') + i) for i in range(12)]
 
     # Bracket structure for Round of 32.
@@ -326,30 +331,31 @@ class MonteCarloEngine:
                     (min(i_pos, j_pos), max(i_pos, j_pos))
                 )
 
-            # Simulate remaining (not yet completed) matches
-            for i, j in self.GROUP_MATCHES:
-                pair = (min(i, j), max(i, j))
-                if pair in completed_pairs:
-                    continue  # already played, skip
+            # Simulate remaining (not yet completed) matches round by round
+            for round_matches in self.GROUP_ROUNDS:
+                for i, j in round_matches:
+                    pair = (min(i, j), max(i, j))
+                    if pair in completed_pairs:
+                        continue  # already played, skip
 
-                λ_i, λ_j = expected_goals(
-                    comps[i], comps[j],
-                    avg_goals=self._avg_goals,
-                    delta=self._delta,
-                )
-                g_i = self.rng.poisson(λ_i, self.N)
-                g_j = self.rng.poisson(λ_j, self.N)
+                    λ_i, λ_j = expected_goals(
+                        comps[i], comps[j],
+                        avg_goals=self._avg_goals,
+                        delta=self._delta,
+                    )
+                    g_i = self.rng.poisson(λ_i, self.N)
+                    g_j = self.rng.poisson(λ_j, self.N)
 
-                win_i = (g_i > g_j).astype(np.int32)
-                win_j = (g_j > g_i).astype(np.int32)
-                draw = (g_i == g_j).astype(np.int32)
+                    win_i = (g_i > g_j).astype(np.int32)
+                    win_j = (g_j > g_i).astype(np.int32)
+                    draw = (g_i == g_j).astype(np.int32)
 
-                points[:, i] += win_i * 3 + draw * 1
-                points[:, j] += win_j * 3 + draw * 1
-                gd_arr[:, i] += g_i - g_j
-                gd_arr[:, j] += g_j - g_i
-                gf_arr[:, i] += g_i
-                gf_arr[:, j] += g_j
+                    points[:, i] += win_i * 3 + draw * 1
+                    points[:, j] += win_j * 3 + draw * 1
+                    gd_arr[:, i] += g_i - g_j
+                    gd_arr[:, j] += g_j - g_i
+                    gf_arr[:, i] += g_i
+                    gf_arr[:, j] += g_j
 
             # Rank: points > gd > gf
             rank_score = (

@@ -274,3 +274,24 @@ def test_completed_matches_empty_same_as_none():
 
     np.testing.assert_array_equal(result_none.champion, result_empty.champion)
     np.testing.assert_array_equal(result_none.round_32, result_empty.round_32)
+
+
+def test_completed_first_round_match_skips_only_that_pair():
+    groups = _make_teams_by_group()
+    names = _make_team_names(groups)
+    completed = [
+        CompletedMatch(
+            team_a_code="T00",
+            team_b_code="T01",
+            score_a=2,
+            score_b=0,
+            group_name="A",
+        ),
+    ]
+
+    engine = MonteCarloEngine(num_iterations=300, seed=42)
+    result = engine.simulate(groups, names, completed_matches=completed)
+
+    t00_idx = result.team_codes.index("T00")
+    t01_idx = result.team_codes.index("T01")
+    assert result.round_32[t00_idx] > result.round_32[t01_idx]
