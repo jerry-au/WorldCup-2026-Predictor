@@ -183,6 +183,56 @@ class MonteCarloEngine:
             discipline=DisciplineConfig(**data.get("discipline", {})),
         )
 
+    def _apply_factor_caps(
+        self,
+        factors: np.ndarray,
+        min_cap: float,
+        max_cap: float,
+    ) -> np.ndarray:
+        return np.clip(factors, min_cap, max_cap)
+
+    def _calculate_motivation_factors(
+        self,
+        points: np.ndarray,
+        gd_arr: np.ndarray,
+        gf_arr: np.ndarray,
+        round_idx: int,
+        match_pair: tuple[int, int],
+        parameters: SimulationParameters,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        i, j = match_pair
+        factor_i = self._motivation_factor_for_team(points, gd_arr, round_idx, i, parameters)
+        factor_j = self._motivation_factor_for_team(points, gd_arr, round_idx, j, parameters)
+        return factor_i, factor_j
+
+    def _motivation_factor_for_team(
+        self,
+        points: np.ndarray,
+        gd_arr: np.ndarray,
+        round_idx: int,
+        team_pos: int,
+        parameters: SimulationParameters,
+    ) -> np.ndarray:
+        cfg = parameters.motivation
+        factors = np.ones(self.N, dtype=np.float64)
+        if round_idx < 1:
+            return factors
+
+        team_points = points[:, team_pos]
+        team_gd = gd_arr[:, team_pos]
+        active = round_idx >= 2
+        qualified = active & (team_points >= 6)
+        eliminated = active & (team_points == 0) & (team_gd <= -3)
+
+        rank_score = points.astype(np.int64) * 1_000 + gd_arr.astype(np.int64)
+        sorted_scores = np.sort(rank_score, axis=1)[:, ::-1]
+        top_race = active & (team_points >= 3) & ((sorted_scores[:, 0] - sorted_scores[:, 2]) <= 3_000)
+
+        factors = np.where(qualified, factors * cfg.qualified_rotation_multiplier, factors)
+        factors = np.where(eliminated, factors * cfg.eliminated_morale_multiplier, factors)
+        factors = np.where(~qualified & ~eliminated & top_race, factors * cfg.top_spot_motivation_multiplier, factors)
+        return self._apply_factor_caps(factors, cfg.motivation_min_cap, cfg.motivation_max_cap)
+
     # ── Public API ────────────────────────────────────────────────
 
     def simulate(
@@ -332,7 +382,7 @@ class MonteCarloEngine:
                 )
 
             # Simulate remaining (not yet completed) matches round by round
-            for round_matches in self.GROUP_ROUNDS:
+            for round_idx, round_matches in enumerate(self.GROUP_ROUNDS):
                 for i, j in round_matches:
                     pair = (min(i, j), max(i, j))
                     if pair in completed_pairs:
@@ -343,8 +393,11 @@ class MonteCarloEngine:
                         avg_goals=self._avg_goals,
                         delta=self._delta,
                     )
-                    g_i = self.rng.poisson(λ_i, self.N)
-                    g_j = self.rng.poisson(λ_j, self.N)
+                    factor_i, factor_j = self._calculate_motivation_factors(
+                        points, gd_arr, gf_arr, round_idx, (i, j), parameters or SimulationParameters()
+                    )
+                    g_i = self.rng.poisson(λ_i * factor_i)
+                    g_j = self.rng.poisson(λ_j * factor_j)
 
                     win_i = (g_i > g_j).astype(np.int32)
                     win_j = (g_j > g_i).astype(np.int32)

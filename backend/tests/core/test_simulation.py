@@ -100,6 +100,54 @@ def test_deterministic_with_same_preset_parameters():
     np.testing.assert_array_equal(result1.round_32, result2.round_32)
 
 
+def test_motivation_factors_apply_rotation_and_elimination():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+    points = np.array([
+        [6, 0, 3, 3],
+        [6, 0, 3, 3],
+        [6, 0, 3, 3],
+    ], dtype=np.int32)
+    gd_arr = np.array([
+        [3, -5, 1, 1],
+        [3, -5, 1, 1],
+        [3, -5, 1, 1],
+    ], dtype=np.int32)
+    gf_arr = np.ones((3, 4), dtype=np.int32)
+
+    factor_i, factor_j = engine._calculate_motivation_factors(
+        points, gd_arr, gf_arr, round_idx=2, match_pair=(0, 1), parameters=parameters
+    )
+
+    np.testing.assert_array_equal(factor_i, np.full(3, 0.88))
+    np.testing.assert_array_equal(factor_j, np.full(3, 0.82))
+
+
+def test_motivation_factors_apply_top_spot_boost_and_caps():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+    points = np.array([
+        [4, 4, 3, 0],
+        [4, 4, 3, 0],
+        [4, 4, 3, 0],
+    ], dtype=np.int32)
+    gd_arr = np.array([
+        [1, 1, 0, -2],
+        [1, 1, 0, -2],
+        [1, 1, 0, -2],
+    ], dtype=np.int32)
+    gf_arr = np.ones((3, 4), dtype=np.int32)
+
+    factor_i, factor_j = engine._calculate_motivation_factors(
+        points, gd_arr, gf_arr, round_idx=2, match_pair=(0, 1), parameters=parameters
+    )
+    capped = engine._apply_factor_caps(np.array([0.2, 1.0, 2.0]), 0.80, 1.15)
+
+    np.testing.assert_array_equal(factor_i, np.full(3, 1.06))
+    np.testing.assert_array_equal(factor_j, np.full(3, 1.06))
+    np.testing.assert_array_equal(capped, np.array([0.80, 1.0, 1.15]))
+
+
 def test_group_stage_ranking():
     """Group stage produces correct rankings based on points > GD > GF."""
     groups = {
