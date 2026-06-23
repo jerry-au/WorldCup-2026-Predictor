@@ -10,12 +10,14 @@ class SimulationState {
   final double progress;
   final SimulationResult? result;
   final String? error;
+  final String? presetName;
 
   const SimulationState({
     this.isRunning = false,
     this.progress = 0.0,
     this.result,
     this.error,
+    this.presetName,
   });
 
   SimulationState copyWith({
@@ -23,12 +25,14 @@ class SimulationState {
     double? progress,
     SimulationResult? result,
     String? error,
+    String? presetName,
   }) {
     return SimulationState(
       isRunning: isRunning ?? this.isRunning,
       progress: progress ?? this.progress,
       result: result ?? this.result,
       error: error,
+      presetName: presetName ?? this.presetName,
     );
   }
 }
@@ -44,6 +48,7 @@ class SimulationNotifier extends StateNotifier<SimulationState> {
     try {
       final taskData = await _api.startTournamentSimulation();
       final taskId = taskData['task_id'] as String;
+      state = state.copyWith(presetName: taskData['preset_name'] as String?);
       _pollTask(taskId);
     } catch (e) {
       state = state.copyWith(isRunning: false, error: e.toString());
@@ -72,6 +77,13 @@ class SimulationNotifier extends StateNotifier<SimulationState> {
         // Transient error — keep polling
       }
     });
+  }
+
+  Future<void> loadDefaultPresetName() async {
+    try {
+      final preset = await _api.getDefaultSimulationPreset();
+      state = state.copyWith(presetName: preset.name);
+    } catch (_) {}
   }
 
   void reset() {
