@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import '../config/api_config.dart';
+import '../models/simulation_preset.dart';
 
 class ApiService {
   late final Dio _dio;
@@ -115,6 +116,56 @@ class ApiService {
   Future<dynamic> getTaskProgress(String taskId) async {
     final resp = await _dio.get('${ApiConfig.predictTaskEndpoint}/$taskId');
     return resp.data;
+  }
+
+  Future<List<SimulationPreset>> getSimulationPresets() async {
+    final resp = await _dio.get(ApiConfig.simulationPresetsEndpoint);
+    return (resp.data as List)
+        .map((item) => SimulationPreset.fromJson(Map<String, dynamic>.from(item as Map)))
+        .toList();
+  }
+
+  Future<SimulationPreset> getDefaultSimulationPreset() async {
+    final resp = await _dio.get(ApiConfig.simulationDefaultPresetEndpoint);
+    return SimulationPreset.fromJson(Map<String, dynamic>.from(resp.data as Map));
+  }
+
+  Future<SimulationPreset> createSimulationPreset(SimulationPreset preset) async {
+    final resp = await _dio.post(
+      ApiConfig.simulationPresetsEndpoint,
+      data: {
+        'name': preset.name,
+        'description': preset.description,
+        'parameters': preset.parameters.toJson(),
+      },
+    );
+    return SimulationPreset.fromJson(Map<String, dynamic>.from(resp.data as Map));
+  }
+
+  Future<SimulationPreset> updateSimulationPreset(SimulationPreset preset) async {
+    final resp = await _dio.put(
+      '${ApiConfig.simulationPresetsEndpoint}/${preset.id}',
+      data: preset.toUpdateJson(),
+    );
+    return SimulationPreset.fromJson(Map<String, dynamic>.from(resp.data as Map));
+  }
+
+  Future<SimulationPreset> setDefaultSimulationPreset(String id) async {
+    final resp = await _dio.post('${ApiConfig.simulationPresetsEndpoint}/$id/set-default');
+    return SimulationPreset.fromJson(Map<String, dynamic>.from(resp.data as Map));
+  }
+
+  Future<SimulationPreset> duplicateSimulationPreset(String id, String name) async {
+    final resp = await _dio.post(
+      '${ApiConfig.simulationPresetsEndpoint}/$id/duplicate',
+      data: {'name': name},
+    );
+    return SimulationPreset.fromJson(Map<String, dynamic>.from(resp.data as Map));
+  }
+
+  Future<SimulationPreset> resetSimulationPreset(String id) async {
+    final resp = await _dio.post('${ApiConfig.simulationPresetsEndpoint}/$id/reset');
+    return SimulationPreset.fromJson(Map<String, dynamic>.from(resp.data as Map));
   }
 
   // ─── Recommendations ─────────────────────────────────────

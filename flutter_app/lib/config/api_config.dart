@@ -32,6 +32,8 @@ class ApiConfig {
   static const String predictMatchEndpoint = '/predict/match';
   static const String predictTournamentEndpoint = '/predict/tournament';
   static const String predictTaskEndpoint = '/predict/task';
+  static const String simulationPresetsEndpoint = '/simulation/presets';
+  static const String simulationDefaultPresetEndpoint = '/simulation/presets/default';
   static const String valueBetsEndpoint = '/recommendations/value-bets';
   static const String discrepanciesEndpoint = '/recommendations/discrepancies';
   static const String oddsLatestEndpoint = '/odds/latest';
