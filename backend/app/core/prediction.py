@@ -11,7 +11,7 @@ from .poisson import expected_goals, match_probabilities
 class PredictionEngine:
     """Main prediction engine for single match predictions."""
 
-    def __init__(self, rho: float = -0.10, avg_goals: float = 2.5, delta: float = 0.20):
+    def __init__(self, rho: float = -0.10, avg_goals: float = 2.20, delta: float = 0.50):
         self.rho = rho
         self.avg_goals = avg_goals
         self.delta = delta
