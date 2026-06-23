@@ -4,10 +4,15 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models.simulation_preset import SimulationPreset
+from app.schemas.simulation_preset import SimulationPresetUpdate
 from app.services.simulation_preset import (
+    duplicate_preset,
     ensure_default_presets,
     get_default_preset,
     parse_preset_parameters,
+    reset_builtin_preset,
+    set_default_preset,
+    update_preset,
 )
 
 
@@ -65,3 +70,63 @@ def test_ensure_default_presets_is_idempotent(db_session):
 
     assert len(presets) == 3
     assert sum(1 for preset in presets if preset.is_default) == 1
+
+
+def test_update_preset_persists_parameters(db_session):
+    ensure_default_presets(db_session)
+    preset = get_default_preset(db_session)
+    parameters = parse_preset_parameters(preset)
+    parameters["motivation"]["qualified_rotation_multiplier"] = 0.91
+
+    updated = update_preset(
+        db_session,
+        preset.id,
+        SimulationPresetUpdate(parameters=parameters),
+    )
+
+    assert parse_preset_parameters(updated)["motivation"]["qualified_rotation_multiplier"] == 0.91
+
+
+def test_set_default_preset_clears_other_defaults(db_session):
+    ensure_default_presets(db_session)
+    standard = db_session.query(SimulationPreset).filter(SimulationPreset.name == "标准").one()
+
+    set_default_preset(db_session, standard.id)
+
+    presets = db_session.query(SimulationPreset).all()
+    assert get_default_preset(db_session).id == standard.id
+    assert sum(1 for preset in presets if preset.is_default) == 1
+
+
+def test_duplicate_builtin_preset_creates_custom_copy(db_session):
+    ensure_default_presets(db_session)
+    conservative = get_default_preset(db_session)
+
+    duplicate = duplicate_preset(db_session, conservative.id, "我的保守预设")
+
+    assert duplicate.name == "我的保守预设"
+    assert duplicate.is_builtin is False
+    assert duplicate.is_default is False
+    assert parse_preset_parameters(duplicate) == parse_preset_parameters(conservative)
+
+
+def test_reset_builtin_preset_restores_original_parameters(db_session):
+    ensure_default_presets(db_session)
+    conservative = get_default_preset(db_session)
+    parameters = parse_preset_parameters(conservative)
+    parameters["collusion"]["mutual_draw_boost"] = 1.30
+    update_preset(db_session, conservative.id, SimulationPresetUpdate(parameters=parameters))
+
+    reset = reset_builtin_preset(db_session, conservative.id)
+
+    assert parse_preset_parameters(reset)["collusion"]["mutual_draw_boost"] == 1.12
+
+
+def test_invalid_parameters_are_rejected(db_session):
+    ensure_default_presets(db_session)
+    conservative = get_default_preset(db_session)
+    parameters = parse_preset_parameters(conservative)
+    parameters["motivation"]["qualified_rotation_multiplier"] = 2.0
+
+    with pytest.raises(ValueError):
+        update_preset(db_session, conservative.id, SimulationPresetUpdate(parameters=parameters))

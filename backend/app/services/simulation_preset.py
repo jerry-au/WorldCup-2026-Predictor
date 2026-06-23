@@ -5,6 +5,12 @@ from copy import deepcopy
 from sqlalchemy.orm import Session
 
 from ..models.simulation_preset import SimulationPreset
+from ..schemas.simulation_preset import (
+    SimulationPresetCreate,
+    SimulationPresetOut,
+    SimulationPresetParameters,
+    SimulationPresetUpdate,
+)
 
 CONSERVATIVE_PARAMETERS = {
     "motivation": {
@@ -149,3 +155,103 @@ def get_default_preset(db: Session) -> SimulationPreset:
 
 def parse_preset_parameters(preset: SimulationPreset) -> dict:
     return json.loads(preset.parameters_json)
+
+
+def _validated_parameters(parameters: SimulationPresetParameters | dict) -> dict:
+    if isinstance(parameters, SimulationPresetParameters):
+        return parameters.model_dump()
+    return SimulationPresetParameters.model_validate(parameters).model_dump()
+
+
+def _to_out(preset: SimulationPreset) -> SimulationPresetOut:
+    return SimulationPresetOut(
+        id=preset.id,
+        name=preset.name,
+        description=preset.description,
+        is_default=bool(preset.is_default),
+        is_builtin=bool(preset.is_builtin),
+        parameters=_validated_parameters(parse_preset_parameters(preset)),
+    )
+
+
+def list_presets(db: Session) -> list[SimulationPresetOut]:
+    ensure_default_presets(db)
+    return [
+        _to_out(preset)
+        for preset in db.query(SimulationPreset).order_by(SimulationPreset.is_builtin.desc(), SimulationPreset.name).all()
+    ]
+
+
+def create_preset(db: Session, body: SimulationPresetCreate) -> SimulationPreset:
+    preset = SimulationPreset(
+        id=str(uuid.uuid4()),
+        name=body.name,
+        description=body.description,
+        is_default=False,
+        is_builtin=False,
+        parameters_json=json.dumps(body.parameters.model_dump(), ensure_ascii=False),
+    )
+    db.add(preset)
+    db.commit()
+    db.refresh(preset)
+    return preset
+
+
+def update_preset(db: Session, preset_id: str, body: SimulationPresetUpdate) -> SimulationPreset:
+    preset = db.query(SimulationPreset).filter(SimulationPreset.id == preset_id).first()
+    if preset is None:
+        raise ValueError("Preset not found")
+    if body.name is not None:
+        preset.name = body.name
+    if body.description is not None:
+        preset.description = body.description
+    if body.parameters is not None:
+        preset.parameters_json = json.dumps(_validated_parameters(body.parameters), ensure_ascii=False)
+    db.commit()
+    db.refresh(preset)
+    return preset
+
+
+def set_default_preset(db: Session, preset_id: str) -> SimulationPreset:
+    preset = db.query(SimulationPreset).filter(SimulationPreset.id == preset_id).first()
+    if preset is None:
+        raise ValueError("Preset not found")
+    db.query(SimulationPreset).update({SimulationPreset.is_default: False})
+    preset.is_default = True
+    db.commit()
+    db.refresh(preset)
+    return preset
+
+
+def duplicate_preset(db: Session, preset_id: str, name: str) -> SimulationPreset:
+    preset = db.query(SimulationPreset).filter(SimulationPreset.id == preset_id).first()
+    if preset is None:
+        raise ValueError("Preset not found")
+    duplicate = SimulationPreset(
+        id=str(uuid.uuid4()),
+        name=name,
+        description=preset.description,
+        is_default=False,
+        is_builtin=False,
+        parameters_json=preset.parameters_json,
+    )
+    db.add(duplicate)
+    db.commit()
+    db.refresh(duplicate)
+    return duplicate
+
+
+def reset_builtin_preset(db: Session, preset_id: str) -> SimulationPreset:
+    preset = db.query(SimulationPreset).filter(SimulationPreset.id == preset_id).first()
+    if preset is None:
+        raise ValueError("Preset not found")
+    if not preset.is_builtin:
+        raise ValueError("Only builtin presets can be reset")
+    builtin = get_builtin_presets().get(preset.name)
+    if builtin is None:
+        raise ValueError("Unknown builtin preset")
+    preset.description = builtin["description"]
+    preset.parameters_json = json.dumps(builtin["parameters"], ensure_ascii=False)
+    db.commit()
+    db.refresh(preset)
+    return preset
