@@ -23,6 +23,46 @@ class TeamInGroup:
 
 
 @dataclass
+class MotivationConfig:
+    qualified_rotation_multiplier: float = 1.0
+    eliminated_morale_multiplier: float = 1.0
+    top_spot_motivation_multiplier: float = 1.0
+    honor_match_randomness_multiplier: float = 1.0
+    motivation_min_cap: float = 1.0
+    motivation_max_cap: float = 1.0
+
+
+@dataclass
+class CollusionConfig:
+    mutual_draw_boost: float = 1.0
+    opponent_selection_loss_multiplier: float = 1.0
+
+
+@dataclass
+class EnvironmentConfig:
+    home_advantage_multiplier: float = 1.0
+    travel_fatigue_multiplier: float = 1.0
+    weather_adaptation_multiplier: float = 1.0
+    jet_lag_multiplier: float = 1.0
+    context_min_cap: float = 1.0
+    context_max_cap: float = 1.0
+
+
+@dataclass
+class DisciplineConfig:
+    yellow_card_caution_multiplier: float = 1.0
+    key_player_suspension_multiplier: float = 1.0
+
+
+@dataclass
+class SimulationParameters:
+    motivation: MotivationConfig = field(default_factory=MotivationConfig)
+    collusion: CollusionConfig = field(default_factory=CollusionConfig)
+    environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
+    discipline: DisciplineConfig = field(default_factory=DisciplineConfig)
+
+
+@dataclass
 class CompletedMatch:
     """A completed group-stage match with known final score.
 
@@ -128,6 +168,16 @@ class MonteCarloEngine:
         self._avg_goals = 2.5
         self._delta = 0.20
 
+    def _parameters_from_dict(self, data: dict | None) -> SimulationParameters:
+        if not data:
+            return SimulationParameters()
+        return SimulationParameters(
+            motivation=MotivationConfig(**data.get("motivation", {})),
+            collusion=CollusionConfig(**data.get("collusion", {})),
+            environment=EnvironmentConfig(**data.get("environment", {})),
+            discipline=DisciplineConfig(**data.get("discipline", {})),
+        )
+
     # ── Public API ────────────────────────────────────────────────
 
     def simulate(
@@ -135,6 +185,7 @@ class MonteCarloEngine:
         teams_by_group: Dict[str, List[TeamInGroup]],
         team_names: Dict[str, str],
         completed_matches: List[CompletedMatch] | None = None,
+        preset_parameters: dict | None = None,
     ) -> SimulationResults:
         """Run full tournament simulation.
 
@@ -170,10 +221,11 @@ class MonteCarloEngine:
         n_teams = len(all_codes)
         all_comps = np.array(comp_list, dtype=np.float64)
         names = [team_names.get(c, c) for c in all_codes]
+        parameters = self._parameters_from_dict(preset_parameters)
 
         # ── Phase 1: Group stage ──
         group_rankings, third_ranked = self._simulate_group_stage(
-            group_team_indices, all_comps, all_codes, completed_matches
+            group_team_indices, all_comps, all_codes, completed_matches, parameters
         )
 
         # ── Phase 2: Determine qualified third-placed teams ──
@@ -205,6 +257,7 @@ class MonteCarloEngine:
         all_comps: np.ndarray,
         all_codes: List[str],
         completed_matches: List[CompletedMatch] | None = None,
+        parameters: SimulationParameters | None = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Simulate group stage for all 12 groups.
 

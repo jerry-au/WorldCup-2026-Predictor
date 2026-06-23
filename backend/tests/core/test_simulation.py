@@ -41,6 +41,35 @@ def _make_team_names(groups: dict[str, list[TeamInGroup]]) -> dict[str, str]:
     return names
 
 
+def _make_preset_parameters() -> dict:
+    return {
+        "motivation": {
+            "qualified_rotation_multiplier": 0.88,
+            "eliminated_morale_multiplier": 0.82,
+            "top_spot_motivation_multiplier": 1.06,
+            "honor_match_randomness_multiplier": 1.10,
+            "motivation_min_cap": 0.80,
+            "motivation_max_cap": 1.15,
+        },
+        "collusion": {
+            "mutual_draw_boost": 1.12,
+            "opponent_selection_loss_multiplier": 0.94,
+        },
+        "environment": {
+            "home_advantage_multiplier": 1.05,
+            "travel_fatigue_multiplier": 0.97,
+            "weather_adaptation_multiplier": 0.96,
+            "jet_lag_multiplier": 0.97,
+            "context_min_cap": 0.85,
+            "context_max_cap": 1.10,
+        },
+        "discipline": {
+            "yellow_card_caution_multiplier": 0.96,
+            "key_player_suspension_multiplier": 0.90,
+        },
+    }
+
+
 def test_deterministic_with_seed():
     """Same seed produces identical results across two runs."""
     groups = _make_teams_by_group()
@@ -51,6 +80,21 @@ def test_deterministic_with_seed():
 
     engine2 = MonteCarloEngine(num_iterations=100, seed=42)
     result2 = engine2.simulate(groups, names)
+
+    np.testing.assert_array_equal(result1.champion, result2.champion)
+    np.testing.assert_array_equal(result1.round_32, result2.round_32)
+
+
+def test_deterministic_with_same_preset_parameters():
+    groups = _make_teams_by_group()
+    names = _make_team_names(groups)
+    preset = _make_preset_parameters()
+
+    engine1 = MonteCarloEngine(num_iterations=100, seed=42)
+    result1 = engine1.simulate(groups, names, preset_parameters=preset)
+
+    engine2 = MonteCarloEngine(num_iterations=100, seed=42)
+    result2 = engine2.simulate(groups, names, preset_parameters=preset)
 
     np.testing.assert_array_equal(result1.champion, result2.champion)
     np.testing.assert_array_equal(result1.round_32, result2.round_32)
