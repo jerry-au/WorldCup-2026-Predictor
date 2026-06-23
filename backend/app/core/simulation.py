@@ -165,6 +165,7 @@ class MonteCarloEngine:
 
     # Lambda for home advantage multiplier in knockout
     HOME_ADV = 1.08
+    HOST_TEAM_CODES = {"USA", "MEX", "CAN"}
 
     def __init__(self, num_iterations: int = 10_000, seed: int = 42):
         self.N = num_iterations
@@ -294,6 +295,28 @@ class MonteCarloEngine:
             np.zeros((self.N, 4), dtype=bool),
             np.zeros((self.N, 4), dtype=bool),
         )
+
+    def _calculate_context_factors(
+        self,
+        team_codes: list[str],
+        match_pair: tuple[int, int],
+        parameters: SimulationParameters,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        i, j = match_pair
+        return (
+            self._context_factor_for_team(team_codes[i], parameters),
+            self._context_factor_for_team(team_codes[j], parameters),
+        )
+
+    def _context_factor_for_team(
+        self,
+        team_code: str,
+        parameters: SimulationParameters,
+    ) -> np.ndarray:
+        cfg = parameters.environment
+        factor = cfg.home_advantage_multiplier if team_code in self.HOST_TEAM_CODES else 1.0
+        factors = np.full(self.N, factor, dtype=np.float64)
+        return self._apply_factor_caps(factors, cfg.context_min_cap, cfg.context_max_cap)
 
     def _calculate_discipline_factors(
         self,
@@ -453,6 +476,7 @@ class MonteCarloEngine:
                 continue
 
             comps = all_comps[idxs]  # [4]
+            group_codes = [all_codes[idx] for idx in idxs]
 
             points = np.zeros((self.N, 4), dtype=np.int32)
             gd_arr = np.zeros((self.N, 4), dtype=np.int32)
@@ -513,8 +537,9 @@ class MonteCarloEngine:
                     discipline_i, discipline_j = self._calculate_discipline_factors(
                         points, yellow_risk, suspended_next, (i, j), active_parameters
                     )
-                    lambda_i = np.full(self.N, λ_i, dtype=np.float64) * factor_i * discipline_i
-                    lambda_j = np.full(self.N, λ_j, dtype=np.float64) * factor_j * discipline_j
+                    context_i, context_j = self._calculate_context_factors(group_codes, (i, j), active_parameters)
+                    lambda_i = np.full(self.N, λ_i, dtype=np.float64) * factor_i * discipline_i * context_i
+                    lambda_j = np.full(self.N, λ_j, dtype=np.float64) * factor_j * discipline_j * context_j
                     suspended_next[:, i] = False
                     suspended_next[:, j] = False
                     honor_mask = (round_idx == 2) & (points[:, i] <= 1) & (points[:, j] <= 1)

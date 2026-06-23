@@ -248,6 +248,32 @@ def test_update_discipline_state_can_create_future_suspension():
     assert yellow_risk[:, [0, 1]].any() or suspended_next[:, [0, 1]].any()
 
 
+def test_context_factors_apply_host_advantage_and_caps():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+
+    factor_i, factor_j = engine._calculate_context_factors(
+        ["USA", "FRA", "BRA", "JPN"], match_pair=(0, 1), parameters=parameters
+    )
+    capped = engine._apply_factor_caps(np.array([0.2, 1.0, 2.0]), 0.85, 1.10)
+
+    np.testing.assert_array_equal(factor_i, np.full(3, 1.05))
+    np.testing.assert_array_equal(factor_j, np.ones(3))
+    np.testing.assert_array_equal(capped, np.array([0.85, 1.0, 1.10]))
+
+
+def test_context_factors_are_neutral_without_available_metadata():
+    engine = MonteCarloEngine(num_iterations=3, seed=42)
+    parameters = engine._parameters_from_dict(_make_preset_parameters())
+
+    factor_i, factor_j = engine._calculate_context_factors(
+        ["BRA", "FRA", "JPN", "MAR"], match_pair=(0, 1), parameters=parameters
+    )
+
+    np.testing.assert_array_equal(factor_i, np.ones(3))
+    np.testing.assert_array_equal(factor_j, np.ones(3))
+
+
 def test_group_stage_ranking():
     """Group stage produces correct rankings based on points > GD > GF."""
     groups = {
