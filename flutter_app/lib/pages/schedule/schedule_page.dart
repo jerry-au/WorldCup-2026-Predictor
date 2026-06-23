@@ -28,6 +28,10 @@ class SchedulePage extends ConsumerStatefulWidget {
   ConsumerState<SchedulePage> createState() => _SchedulePageState();
 }
 
+String formatScheduleProbability(double probability) {
+  return '${(probability * 100).round()}%';
+}
+
 class _SchedulePageState extends ConsumerState<SchedulePage> {
   String? _selectedStage;
   String? _selectedStatus = SchedulePage.defaultStatus;
@@ -35,6 +39,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   final List<ScheduleMatch> _allMatches = [];
   int _totalMatches = 0;
   int _totalPages = 1;
+  bool _isLoadingNextPage = false;
   final Set<int> _loadedPages = {};
 
   static const _stageOptions = [
@@ -59,14 +64,16 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
         _allMatches.clear();
         _totalMatches = 0;
         _totalPages = 1;
+        _isLoadingNextPage = false;
         _loadedPages.clear();
       });
     }
   }
 
   void _loadMore() {
-    if (_currentPage >= _totalPages) return;
+    if (_isLoadingNextPage || _currentPage >= _totalPages) return;
     setState(() {
+      _isLoadingNextPage = true;
       _currentPage++;
     });
   }
@@ -150,6 +157,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                   _allMatches.addAll(data.matches);
                   _totalMatches = data.total;
                   _totalPages = data.totalPages;
+                  _isLoadingNextPage = false;
                 });
               }
             },
@@ -160,8 +168,8 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   }
 }
 
-/// 比赛列表组件 - 独立组件避免无限循环
-class _ScheduleMatchList extends ConsumerWidget {
+/// 比赛列表组件 - 独立组件避免无限循环，滚动接近底部时自动预加载下一页
+class _ScheduleMatchList extends ConsumerStatefulWidget {
   final ScheduleFilter filter;
   final List<ScheduleMatch> allMatches;
   final int totalMatches;
@@ -182,13 +190,42 @@ class _ScheduleMatchList extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final matchesAsync = ref.watch(allMatchesProvider(filter));
+  ConsumerState<_ScheduleMatchList> createState() => _ScheduleMatchListState();
+}
+
+class _ScheduleMatchListState extends ConsumerState<_ScheduleMatchList> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    if (widget.currentPage >= widget.totalPages) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 240) {
+      widget.onLoadMore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matchesAsync = ref.watch(allMatchesProvider(widget.filter));
 
     return matchesAsync.when(
-      loading: () => allMatches.isEmpty
+      loading: () => widget.allMatches.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : _buildListView(allMatches, null, ref),
+          : _buildListView(widget.allMatches, null, ref, isLoadingMore: true),
       error: (err, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -198,7 +235,7 @@ class _ScheduleMatchList extends ConsumerWidget {
             Text('加载失败', style: TextStyle(color: Colors.grey.shade600)),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: () => ref.invalidate(allMatchesProvider(filter)),
+              onPressed: () => ref.invalidate(allMatchesProvider(widget.filter)),
               child: const Text('重试'),
             ),
           ],
@@ -207,16 +244,16 @@ class _ScheduleMatchList extends ConsumerWidget {
       data: (data) {
         // 通知父组件数据已加载（延迟到下一帧避免循环）
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          onDataLoaded(data);
+          widget.onDataLoaded(data);
         });
 
-        final displayMatches = currentPage == 1 ? data.matches : allMatches;
+        final displayMatches = widget.currentPage == 1 ? data.matches : widget.allMatches;
         return _buildListView(displayMatches, data, ref);
       },
     );
   }
 
-  Widget _buildListView(List<ScheduleMatch> matches, AllMatchesResponse? data, WidgetRef ref) {
+  Widget _buildListView(List<ScheduleMatch> matches, AllMatchesResponse? data, WidgetRef ref, {bool isLoadingMore = false}) {
     if (matches.isEmpty) {
       return Center(
         child: Column(
@@ -234,24 +271,17 @@ class _ScheduleMatchList extends ConsumerWidget {
 
     return RefreshIndicator(
       onRefresh: () async {
-        ref.invalidate(allMatchesProvider(filter));
+        ref.invalidate(allMatchesProvider(widget.filter));
       },
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemCount: matches.length + (hasMore ? 1 : 0),
+        itemCount: matches.length + (hasMore || isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= matches.length) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: OutlinedButton.icon(
-                onPressed: onLoadMore,
-                icon: const Icon(Icons.arrow_downward, size: 18),
-                label: Text('加载更多 (${totalMatches - matches.length} 场)'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
             );
           }
 
@@ -386,7 +416,7 @@ class _ScheduleMatchCard extends StatelessWidget {
                               const SizedBox(height: 4),
                               if (match.prediction != null)
                                 Text(
-                                  '${match.prediction!.win.toStringAsFixed(0)}% / ${match.prediction!.draw.toStringAsFixed(0)}% / ${match.prediction!.lose.toStringAsFixed(0)}%',
+                                  '${formatScheduleProbability(match.prediction!.win)} / ${formatScheduleProbability(match.prediction!.draw)} / ${formatScheduleProbability(match.prediction!.lose)}',
                                   style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                                 ),
                             ],

@@ -79,12 +79,17 @@ def build_today_matches_response(db: Session, target_date: date | None = None) -
 
 def build_all_matches_response(db: Session, stage: str | None = None, status: str | None = None, page: int = 1, page_size: int = 20) -> dict:
     """获取所有比赛赛程，包括已结束比赛的比分（支持分页）"""
-    query = db.query(DongqiudiMatch).order_by(DongqiudiMatch.commence_time.asc())
+    query = db.query(DongqiudiMatch)
 
     if stage:
         query = query.filter(DongqiudiMatch.stage == stage)
     if status:
         query = query.filter(DongqiudiMatch.status == status)
+
+    if status == "completed":
+        query = query.order_by(DongqiudiMatch.commence_time.desc())
+    else:
+        query = query.order_by(DongqiudiMatch.commence_time.asc())
 
     # 获取总数
     total = query.count()

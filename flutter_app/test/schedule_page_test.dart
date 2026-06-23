@@ -11,4 +11,10 @@ void main() {
     ]));
     expect(SchedulePage.statusFilterValues, isNot(contains(null)));
   });
+
+  test('formats decimal probabilities as percentages', () {
+    expect(formatScheduleProbability(0.6171), '62%');
+    expect(formatScheduleProbability(0.1603), '16%');
+    expect(formatScheduleProbability(0.2226), '22%');
+  });
 }
