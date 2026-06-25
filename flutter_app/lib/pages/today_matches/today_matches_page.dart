@@ -394,9 +394,9 @@ class _OddsSection extends StatelessWidget {
             else
               Row(
                 children: [
-                  _OddsItem(label: '主胜', value: odds.avgWin),
-                  _OddsItem(label: '平局', value: odds.avgDraw),
-                  _OddsItem(label: '客胜', value: odds.avgLose),
+                  Expanded(child: _OddsItem(label: '主胜', value: odds.avgWin)),
+                  Expanded(child: _OddsItem(label: '平局', value: odds.avgDraw)),
+                  Expanded(child: _OddsItem(label: '客胜', value: odds.avgLose)),
                 ],
               ),
           ],

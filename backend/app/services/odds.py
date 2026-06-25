@@ -98,7 +98,8 @@ class OddsClient:
                 "api_requests_used": 0,
             }
         except Exception as e:
-            return {"status": "error", "source": "betexplorer", "reason": str(e), "api_requests_used": 0}
+            reason = f"{type(e).__name__}: {e}".rstrip(": ")
+            return {"status": "error", "source": "betexplorer", "reason": reason, "api_requests_used": 0}
 
     async def _fetch_betexplorer_text(self, url: str) -> str:
         resp = await self.session.get(url)
@@ -132,18 +133,30 @@ class OddsClient:
         return matches
 
     def _parse_fixture_row(self, cells: list[str], stage: str | None) -> dict | None:
-        if len(cells) < 6 or " - " not in cells[1]:
+        # Locate the matchup cell by its " - " separator instead of a fixed
+        # column index. BetExplorer occasionally omits the kickoff-time cell
+        # (e.g. for matches that have just started), which previously shifted
+        # every later column and caused valid fixtures to be skipped.
+        matchup_index = next(
+            (i for i, cell in enumerate(cells) if " - " in cell and self._to_float(cell) is None),
+            None,
+        )
+        if matchup_index is None:
             return None
-        provider_count = self._to_int(cells[2])
-        odds_home = self._to_float(cells[3])
-        odds_draw = self._to_float(cells[4])
-        odds_away = self._to_float(cells[5])
-        if odds_home is None or odds_draw is None or odds_away is None:
+
+        # Provider count and the three 1X2 odds follow the matchup cell.
+        trailing = cells[matchup_index + 1:]
+        provider_count = self._to_int(trailing[0]) if trailing else None
+        odds_floats = [value for value in (self._to_float(cell) for cell in trailing) if value is not None]
+        if len(odds_floats) < 3:
             return None
-        home, away = [part.strip() for part in cells[1].split(" - ", 1)]
+        odds_home, odds_draw, odds_away = odds_floats[-3:]
+
+        time_cell = cells[matchup_index - 1] if matchup_index > 0 else None
+        home, away = [part.strip() for part in cells[matchup_index].split(" - ", 1)]
         return {
             "stage": stage,
-            "time": cells[0],
+            "time": time_cell,
             "home_team": self._clean_team_name(home),
             "away_team": self._clean_team_name(away),
             "provider_count": provider_count or 1,
@@ -153,17 +166,35 @@ class OddsClient:
         }
 
     def _parse_result_row(self, cells: list[str], stage: str | None) -> dict | None:
-        if len(cells) < 5 or " - " not in cells[0] or not re.match(r"^\d+:\d+|CAN\.", cells[1]):
+        # Locate the matchup cell directly; the final score must immediately
+        # follow it, then the three 1X2 odds. Anchoring on the matchup cell
+        # keeps parsing robust if surrounding empty columns are dropped.
+        matchup_index = next(
+            (i for i, cell in enumerate(cells) if " - " in cell and self._to_float(cell) is None),
+            None,
+        )
+        if matchup_index is None:
             return None
-        odds_home = self._to_float(cells[2])
-        odds_draw = self._to_float(cells[3])
-        odds_away = self._to_float(cells[4])
-        if odds_home is None or odds_draw is None or odds_away is None:
+
+        score_cell = cells[matchup_index + 1] if matchup_index + 1 < len(cells) else ""
+        if not re.match(r"^\d+:\d+|CAN\.", score_cell):
             return None
-        home, away = [part.strip() for part in cells[0].split(" - ", 1)]
+
+        trailing = cells[matchup_index + 2:]
+        odds_floats = [value for value in (self._to_float(cell) for cell in trailing) if value is not None]
+        if len(odds_floats) < 3:
+            return None
+        odds_home, odds_draw, odds_away = odds_floats[:3]
+
+        # The kickoff date trails the odds (e.g. "18.06."); ignore the odds cells.
+        time_cell = next(
+            (cell for cell in trailing if self._to_float(cell) is None and re.search(r"\d", cell)),
+            None,
+        )
+        home, away = [part.strip() for part in cells[matchup_index].split(" - ", 1)]
         return {
             "stage": stage,
-            "time": cells[5] if len(cells) > 5 else None,
+            "time": time_cell,
             "home_team": self._clean_team_name(home),
             "away_team": self._clean_team_name(away),
             "provider_count": 1,

@@ -64,3 +64,35 @@ def test_parse_betexplorer_1x2_rows():
             "odds_away": 11.38,
         },
     ]
+
+FIXTURES_NO_TIME_HTML = """
+<table>
+<tr><th>Group X - 3. Round</th><th></th><th>B's</th><th>1</th><th>X</th><th>2</th><th></th></tr>
+<tr><td></td><td><a href="/football/world/world-championship-2026/switzerland-canada/abcd1234/"><span>Switzerland</span> - <span>Canada</span></a></td><td></td><td>4</td><td><button data-odd="2.51"></button></td><td><button data-odd="2.93"></button></td><td><button data-odd="3.11"></button></td></tr>
+</table>
+"""
+
+
+def test_parse_fixture_row_without_kickoff_time():
+    """A fixture whose kickoff-time cell is empty must still be parsed.
+
+    BetExplorer drops the time cell for in-progress matches (e.g. Switzerland
+    vs Canada), which collapses the row to five non-empty cells. Anchoring on
+    the matchup cell rather than fixed indices keeps the match from being lost.
+    """
+    client = OddsClient()
+
+    matches = client._parse_betexplorer_matches(FIXTURES_NO_TIME_HTML)
+
+    assert matches == [
+        {
+            "stage": "Group X - 3. Round",
+            "time": None,
+            "home_team": "Switzerland",
+            "away_team": "Canada",
+            "provider_count": 4,
+            "odds_home": 2.51,
+            "odds_draw": 2.93,
+            "odds_away": 3.11,
+        }
+    ]
