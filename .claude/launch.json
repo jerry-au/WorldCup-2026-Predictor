@@ -9,35 +9,24 @@
         "uvicorn",
         "app.main:app",
         "--host",
-        "127.0.0.1",
+        "0.0.0.0",
         "--port",
-        "8008",
+        "9000",
         "--reload"
       ],
-      "port": 8008,
+      "port": 9000,
       "cwd": "${workspaceFolder}/backend"
     },
     {
       "name": "Flutter Web",
       "runtimeExecutable": "C:\\Users\\jerry\\flutter\\bin\\flutter.bat",
       "runtimeArgs": [
-        "build",
-        "web"
+        "run",
+        "-d",
+        "chrome",
+        "--web-port=9001"
       ],
-      "port": 8080,
-      "cwd": "${workspaceFolder}/flutter_app"
-    },
-    {
-      "name": "Flutter Web (Serve)",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": [
-        "-m",
-        "http.server",
-        "8080",
-        "--directory",
-        "build/web"
-      ],
-      "port": 8080,
+      "port": 9001,
       "cwd": "${workspaceFolder}/flutter_app"
     }
   ]

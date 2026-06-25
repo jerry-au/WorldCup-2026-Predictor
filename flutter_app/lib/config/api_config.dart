@@ -13,8 +13,8 @@ class ApiConfig {
     const override = String.fromEnvironment('API_BASE_URL');
     if (override.isNotEmpty) return override;
 
-    // 默认使用远程服务器（生产设置）
-    return _serverUrl;
+    // 默认使用本地服务器（开发设置）
+    return _localUrl;
   }
 
   static const String apiPrefix = '/api/v1';

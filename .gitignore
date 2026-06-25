@@ -31,3 +31,11 @@ Thumbs.db
 *.zip
 *.tar.gz
 *.rar
+
+# Logs and runtime outputs
+*.log
+*_out.txt
+test_redir.log
+
+# Claude worktrees (temporary)
+.claude/worktrees/
